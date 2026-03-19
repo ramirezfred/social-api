@@ -52,6 +52,12 @@ class ApiPexelsController extends Controller
 
         $pexels = json_decode($response);
 
+        // Verificar que la respuesta sea JSON válido y un objeto
+        if (json_last_error() !== JSON_ERROR_NONE || !is_object($pexels)) {
+            // Aquí puedes loguear $response para ver qué devolvió la API
+            \Log::error("[PexelsAPI] Respuesta inválida: ".$response);
+            return 1;
+        }
 
         if (property_exists($pexels, 'total_results')) {
 
@@ -560,11 +566,27 @@ class ApiPexelsController extends Controller
 
         $pexels = json_decode($response);
 
+        // Verificar que la respuesta sea JSON válido y un objeto
+        if (json_last_error() !== JSON_ERROR_NONE || !is_object($pexels)) {
+            // Aquí puedes loguear $response para ver qué devolvió la API
+            \Log::error("[PexelsAPI] Respuesta inválida: ".$response);
+            return $photos;
+        }
+
         if (property_exists($pexels, 'page')) {
 
             for ($i=0; $i < count($pexels->photos); $i++) { 
 
-                $type_src_aux = str_replace("h=1200&w=800", "h=1080&w=1080", $pexels->photos[$i]->src->$type_src);
+                $src_obj = $pexels->photos[$i]->src;
+
+                if (isset($src_obj->$type_src)) {
+                    $type_src_aux = str_replace("h=1200&w=800", "h=1080&w=1080", $src_obj->$type_src);
+                }  else {
+                    // fallback si no existe la clave
+                    $type_src_aux = $src_obj->original."?h=1080&w=1080"; 
+                }
+
+                // $type_src_aux = str_replace("h=1200&w=800", "h=1080&w=1080", $pexels->photos[$i]->src->$type_src);
                 
                 $resul = (object) [
                     // 'large' => $pexels->photos[$i]->src->large,

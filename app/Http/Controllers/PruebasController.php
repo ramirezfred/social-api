@@ -75,6 +75,8 @@ use Redirect;
 use Swift_SmtpTransport;
 use Swift_Mailer;
 
+use Illuminate\Support\Facades\Cache;
+
 class PruebasController extends Controller
 {
 
@@ -1104,6 +1106,60 @@ class PruebasController extends Controller
           
         }  
 
+    }
+
+    public function testRateLimit() {
+        $result = self::checkGoogleSlidingWindowWithWait(5);
+
+        if (!$result['allowed']) {
+            return [
+                'status' => 429,
+                'error' => 'Límite de peticiones alcanzado. Intente en '.$result['wait_seconds'].' segundos.'
+            ];
+        }else{
+            return [
+                'status' => 200,
+                'message' => 'Petición exitosa.'
+            ];
+        }
+    }
+
+    private static function checkGoogleSlidingWindowWithWait($limit = 15)
+    {
+        $key = 'google_ai_sliding_window';
+        $windowSeconds = 60;
+
+        // Micro delay para reducir colisiones
+        usleep(100000); //100ms
+
+        $timestamps = Cache::get($key, []);
+        $now = time();
+
+        // Filtrar solo los últimos 60 segundos
+        $timestamps = array_values(array_filter($timestamps, function ($timestamp) use ($now, $windowSeconds) {
+            return ($now - $timestamp) < $windowSeconds;
+        }));
+
+        if (count($timestamps) >= $limit) {
+            // Calcular el tiempo que falta para liberar la primera petición
+            $earliest = $timestamps[0];
+            $waitSeconds = $windowSeconds - ($now - $earliest);
+            return [
+                'allowed' => false,
+                'wait_seconds' => $waitSeconds > 0 ? $waitSeconds : 1 // mínimo 1 segundo
+            ];
+        }
+
+        // Agregar timestamp actual
+        $timestamps[] = $now;
+
+        // Guardar con TTL de 60 segundos
+        Cache::put($key, $timestamps, $windowSeconds);
+
+        return [
+            'allowed' => true,
+            'wait_seconds' => 0
+        ];
     }
 
  

@@ -139,6 +139,7 @@ Route::get('pruebas/catalogo_vista/goopy', [PruebasController::class, 'catalogoV
 Route::get('pruebas/catalogo_pdf/goopy', [PruebasController::class, 'catalogoPdfGoopy']);
 Route::get('pruebas/send_email', [PruebasController::class, 'sendEmail']);
 Route::get('pruebas/test_ai', [PruebasController::class, 'testAI']);
+Route::get('pruebas/test_rate_limit', [PruebasController::class, 'testRateLimit']);
 
 //----Pruebas SistemaController
 Route::put('sistema/test/{id}', [SistemaController::class, 'updateTest']);
@@ -445,5 +446,10 @@ Route::group(['middleware' => ['jwt.verify.admin']], function() {
     Route::put('bots/update/access_token', [BotController::class, 'updateTokenBot']);
     Route::get('bots/get/access_token', [BotController::class, 'getTokenBot']);
 
+});
+
+// Cargar rutas de la plaza del vestido
+Route::prefix('plaza_vestido')->group(function () {
+    require __DIR__ . '/plaza_vestido/plaza_vestido.php';
 });
 

@@ -21,6 +21,8 @@ use Exception;
 
 use Carbon\Carbon;
 
+use Illuminate\Support\Facades\Cache;
+
 date_default_timezone_set('America/Mexico_City');
 
 trait ApiGoogleAITrait
@@ -28,15 +30,67 @@ trait ApiGoogleAITrait
     public static $base_url_googleAI = "https://generativelanguage.googleapis.com";
     public static $path_googleAI = "/v1beta";
     // public static $model_googleAI = "gemini-1.5-flash";
-    public static $model_googleAI = "gemini-2.0-flash";
-    public static $apiKey_googleAI = "AIzaSyCZTalpfp1QSaqVetYOOCnhMlioytb8iJ0";
+    // public static $model_googleAI = "gemini-2.0-flash";
+    public static $model_googleAI = "gemini-2.5-flash";
+    // public static $apiKey_googleAI = "AIzaSyB16GH91d0oO8PPAujCziU2NoDfoi5btH0";
+    // public static $apiKey_googleAI = "AIzaSyABZpyK8Ao4jc9HqRCpRFvhcgDeoxPTU7I";
+    public static $apiKey_googleAI = "AIzaSyDzeTSlCY8hPNyGdSM9D1XNj88ic8N00wo";
 
     public static $cache_ttl_googleAI = "3600s"; //1 hora
-    public static $cache_model_googleAI = "gemini-1.5-flash-001";
+    public static $cache_model_googleAI  = "gemini-1.5-flash-001";
+
+    private static function checkGoogleSlidingWindowWithWait($limit = 15)
+    {
+        $key = 'google_ai_sliding_window';
+        $windowSeconds = 60;
+
+        // Micro delay para reducir colisiones
+        usleep(100000); //100ms
+
+        $timestamps = Cache::get($key, []);
+        $now = time();
+
+        // Filtrar solo los últimos 60 segundos
+        $timestamps = array_values(array_filter($timestamps, function ($timestamp) use ($now, $windowSeconds) {
+            return ($now - $timestamp) < $windowSeconds;
+        }));
+
+        if (count($timestamps) >= $limit) {
+            // Calcular el tiempo que falta para liberar la primera petición
+            $earliest = $timestamps[0];
+            $waitSeconds = $windowSeconds - ($now - $earliest);
+            return [
+                'allowed' => false,
+                'wait_seconds' => $waitSeconds > 0 ? $waitSeconds : 1 // mínimo 1 segundo
+            ];
+        }
+
+        // Agregar timestamp actual
+        $timestamps[] = $now;
+
+        // Guardar con TTL de 60 segundos
+        Cache::put($key, $timestamps, $windowSeconds);
+
+        return [
+            'allowed' => true,
+            'wait_seconds' => 0
+        ];
+    }
 
     
     public static function _textosGoogleAI($brand_id)
     {
+
+        $result = self::checkGoogleSlidingWindowWithWait(18);
+
+        if (!$result['allowed']) {
+            return [
+                'status' => 429,
+                'error' => 'Límite de peticiones alcanzado. Intente en '.$result['wait_seconds'].' segundos.',
+                'open_ai'=>null
+            ];
+        }
+
         set_time_limit(500);  
 
         $marca = SocialBrand::find($brand_id);
@@ -208,6 +262,16 @@ trait ApiGoogleAITrait
 
     public static function _palabrasClaveEmpresaGoogleAI($brand_id)
     {
+        $result = self::checkGoogleSlidingWindowWithWait(18);
+
+        if (!$result['allowed']) {
+            return [
+                'status' => 429,
+                'error' => 'Límite de peticiones alcanzado. Intente en '.$result['wait_seconds'].' segundos.',
+                'open_ai'=>null
+            ];
+        }
+
         set_time_limit(500);  
 
         $marca = SocialBrand::find($brand_id);
@@ -366,6 +430,16 @@ trait ApiGoogleAITrait
 
     public static function _palabrasClavePostGoogleAI($post_id)
     {
+        $result = self::checkGoogleSlidingWindowWithWait(18);
+
+        if (!$result['allowed']) {
+            return [
+                'status' => 429,
+                'error' => 'Límite de peticiones alcanzado. Intente en '.$result['wait_seconds'].' segundos.',
+                'open_ai'=>null
+            ];
+        }
+
         set_time_limit(500);  
 
         $post = SocialPost::find($post_id);
@@ -510,6 +584,16 @@ trait ApiGoogleAITrait
 
     public static function _palabrasClaveEmpresaSinonimosGoogleAI($brand_id)
     {
+        $result = self::checkGoogleSlidingWindowWithWait(18);
+
+        if (!$result['allowed']) {
+            return [
+                'status' => 429,
+                'error' => 'Límite de peticiones alcanzado. Intente en '.$result['wait_seconds'].' segundos.',
+                'open_ai'=>null
+            ];
+        }
+
         set_time_limit(500);  
 
         $marca = SocialBrand::find($brand_id);
