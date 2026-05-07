@@ -33,16 +33,16 @@ class User extends Authenticatable implements JWTSubject
      * @var string[]
      */
     protected $fillable = [
-        'tipo',
+        'tipo', // 1=admin 2=cliente 3=bot 4=vendedor
         'status',
         'email', 
         'password',
         'telefono', 
         'last_login', 
-        'bot_cliente_id',    
+        'bot_cliente_id', 
+        'nombre',
+        'eliminado',   
     ];
-
-    //tipo 1=admin 2=cliente
 
     /**
      * The attributes that should be hidden for serialization.
@@ -64,6 +64,7 @@ class User extends Authenticatable implements JWTSubject
         'tipo' => 'integer',
         'status' => 'integer',
         'bot_cliente_id' => 'integer',
+        'eliminado' => 'boolean',
     ];
 
     // Rest omitted for brevity
@@ -91,6 +92,37 @@ class User extends Authenticatable implements JWTSubject
     public function marcas()
     {
         return $this->hasMany(SocialBrand::class, 'user_id');
+    }
+
+    // --- Scopes ---
+    public function scopeActivos($query)
+    {
+        return $query->where('status', 1)->where('eliminado', false);
+    }
+
+    public function scopeNoEliminados($query)
+    {
+        return $query->where('eliminado', false);
+    }
+
+    // --- Helpers ---
+    public static function existeDuplicado($campo, $valor, $idExcluir = null)
+    {
+        $query = self::noEliminados()
+            ->where($campo, $valor);
+
+        if ($idExcluir) {
+            $query->where('id', '<>', $idExcluir);
+        }
+
+        return $query->exists();
+    }
+
+    public static function buscarPorId($userId)
+    {
+        return self::where('id', $userId)
+            ->noEliminados()
+            ->first();
     }
 
 }

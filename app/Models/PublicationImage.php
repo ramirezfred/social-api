@@ -17,6 +17,8 @@ class PublicationImage extends Model
         'image_path',
     ];
 
+    protected $hidden = ['created_at','updated_at'];
+
     protected $appends  = ['url'];  // agrega el atributo al JSON automáticamente
 
     public function getUrlAttribute(): string

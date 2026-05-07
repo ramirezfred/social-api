@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\PublicationController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\PruebasController;
 
 Route::group(['middleware' => ['jwt.verify']], function() {
 
@@ -69,6 +71,12 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         // Generar email de cotización
         // Route::get('/{id}/email', [QuoteController::class, 'emailQuote']);
 
+        // Route::get('/eliminar/pago/{id}', [QuoteController::class, 'destroyPago']);
+        // Route::get('/set/estado/{id}', [QuoteController::class, 'setEstado']);
+
+        Route::get('/reporte/semanal', [QuoteController::class, 'reporteSemanal']);
+        Route::get('/reporte/general', [QuoteController::class, 'reporteGeneral']);
+        Route::get('/reporte/generalSimple', [QuoteController::class, 'reporteGeneralSimple']);
         
     });
 
@@ -90,4 +98,32 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         
         // Eliminar publicacion
         Route::delete('/{id}', [PublicationController::class, 'destroy']);
+
+        Route::get('/crear/catalogo', [PublicationController::class, 'catalogo']);
+
+        Route::get('/pruebas/catalogo', [PruebasController::class, 'catalogo']);
+
+        Route::get('/borrar/publicaciones/pruebas', [PublicationController::class, 'destroyTestPublications']);
+
+        
+    });
+
+    // ============================================
+    // EMPLEADOS
+    // ============================================
+    Route::prefix('employees')->group(function () {
+        // Listar empleados
+        Route::get('/', [EmployeeController::class, 'index']);
+        
+        // Crear nuevo empleado
+        Route::post('/', [EmployeeController::class, 'store']);
+        
+        // Actualizar empleado
+        Route::put('/{id}', [EmployeeController::class, 'update']);
+
+        // Actualizar contraseña de empleado
+        Route::put('/{id}/password', [EmployeeController::class, 'updatePassword']);
+        
+        // Eliminar empleado
+        Route::delete('/{id}', [EmployeeController::class, 'destroy']);
     });

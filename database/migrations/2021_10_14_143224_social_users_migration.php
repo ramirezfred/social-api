@@ -21,6 +21,9 @@ class SocialUsersMigration extends Migration
             $table->string('email')->nullable();
             $table->string('password')->nullable();
             $table->dateTime('last_login')->nullable();
+
+            $table->string('nombre')->nullable();
+            $table->boolean('eliminado')->default(false);
             
             $table->timestamps();
         });

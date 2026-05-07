@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cotización</title>
+    <title>Reporte Semanal de Ventas por Proveedor</title>
 
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
 
@@ -65,31 +65,25 @@
             <table width="100%">
               <tr>
                 <td style="width: 70%;">
-                  <strong>Cliente:</strong> {{ $data->cliente }}
+                  <strong>Reporte Semanal de Ventas por Proveedor</strong> 
                 </td>
                 <td style="width: 30%;">
-                  <strong>No. orden: {{ $data->folio }}</strong>
+                  <strong>Fecha de Generación:</strong> {{ now()->format('d-m-Y') }}
                 </td>
               </tr>
             </table>
 
             <table width="100%">
-              <tr>
-                <td style="width: 70%;">
-                  <strong>Telf:</strong> {{ $data->telefono }}
-                </td>
-                <td style="width: 30%;">
-                  <strong>Fecha:</strong> {{ \Carbon\Carbon::parse($data->created_at)->format('d-m-Y') }}
-                </td>
-              </tr>
-            </table>
-
-            <table width="100%">
-              <tr>
-                <td style="width: 70%;">
-                  <strong>Moneda:</strong> {{ $data->moneda }}
-                </td>
-              </tr>
+                <tr>
+                    <td style="width: 100%;">
+                        <strong>Desde el:</strong> {{ !empty($desde) ? \Carbon\Carbon::parse($desde)->format('d-m-Y') : 'N/A' }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 100%;">
+                        <strong>Hasta el:</strong> {{ !empty($hasta) ? \Carbon\Carbon::parse($hasta)->format('d-m-Y') : 'N/A' }}
+                    </td>
+                </tr>
             </table>
 
             <br>
@@ -102,41 +96,37 @@
               <thead>
                 <tr style="background-color: rgba({{$r}}, {{$g}}, {{$b}}, 0.2);">
                   <th scope="col"></th>
-                  <th scope="col">Modelo</th>
-                  <th scope="col" style="text-align: center;">Talla</th>
-                  <th scope="col" style="text-align: center;">Color</th>
-                  <th scope="col" style="text-align: center;">Cant. Pzs.</th>
-                  <th scope="col" style="text-align: center;">Precio Unit.</th>
-                  <th scope="col" style="text-align: right;">Total</th>
+                  <th scope="col">Nombre</th>
+                  <th scope="col" style="text-align: center;">Tienda</th>
+                  <th scope="col" style="text-align: center;">Total Compra</th>
+                  <th scope="col" style="text-align: center;">Comisión (%)</th>
+                  <th scope="col" style="text-align: center;">Monto Comisión</th>
+                  <th scope="col" style="text-align: right;">Total a Entregar</th>
                 </tr>
               </thead>
               <tbody>
-                @foreach ($data->detalles as $item)
+                @foreach ($reporte as $item)
                     <tr>
                       <td>
                         {{ $loop->iteration }}
                       </td>
                       <td style="white-space: normal; word-break: break-word;">
-                        {{$item->modelo}}
+                        {{ $item['nombre'] }}
+                      </td>
+                      <td style="white-space: normal; word-break: break-word;">
+                        {{ $item['tienda'] }}
                       </td>
                       <td style="text-align: center;">
-                        {{$item->talla}}
+                        ${{ number_format($item['total_compra'], 2, '.', ',') }}
                       </td>
                       <td style="text-align: center;">
-                        {{$item->color}}
+                        {{ $item['comision_percent'] }}
                       </td>
                       <td style="text-align: center;">
-                          @if(floor($item->cantidad) == $item->cantidad)
-                              {{ number_format($item->cantidad, 0, '.', ',') }}
-                          @else
-                              {{ number_format($item->cantidad, 2, '.', ',') }}
-                          @endif
-                      </td>
-                      <td style="text-align: center;">
-                        ${{ number_format($item->precio_unitario, 2, '.', ',') }}
+                        ${{ number_format($item['descuento_comision'], 2, '.', ',') }}
                       </td>
                       <td style="text-align: right; margin-right: 8px;">
-                        ${{ number_format($item->total, 2, '.', ',') }}
+                        ${{ number_format($item['total_entregar'], 2, '.', ',') }}
                       </td>
                     </tr>
                 @endforeach
@@ -144,58 +134,21 @@
                   <td colspan="7">&nbsp;</td>
                 </tr>
                 <tr style="height: 25px; font-size: 14px;">
-                    <td colspan="6" style="text-align: right;"><strong>SUBTOTAL</strong></td>
+                    <td colspan="3" style="text-align: right;"><strong>TOTALES GENERALES</strong></td>
+                    <td style="text-align: center;">
+                      <strong>${{ number_format($totales_generales['compra'], 2, '.', ',') }}</strong>
+                    </td>
+                    <td style="text-align: center;">
+                      -
+                    </td>
+                    <td style="text-align: center;">
+                      <strong>${{ number_format($totales_generales['comision'], 2, '.', ',') }}</strong>
+                    </td>
                     <td style="text-align: right; margin-right: 8px;">
-                      ${{ number_format($data->subtotal, 2, '.', ',') }}
+                      <strong>${{ number_format($totales_generales['entregar'], 2, '.', ',') }}</strong>
                     </td>
                 </tr>
-                <tr style="height: 25px; font-size: 14px;">
-                  <td colspan="6" style="text-align: right;"><strong>Envío</strong></td>
-                  <td style="text-align: right; margin-right: 8px;">
-                    @if($data->envio !== null && $data->envio > 0)
-                        ${{ number_format($data->envio, 2, '.', ',') }}
-                    @endif
-                  </td>
-                </tr>           
-                <tr style="height: 25px; font-size: 14px;">
-                  <td colspan="6" style="text-align: right;"><strong>TOTAL A PAGAR</strong></td>
-                  <td style="text-align: right; margin-right: 8px;">
-                    <strong>${{ number_format($data->total, 2, '.', ',') }}</strong>
-                  </td>
-                </tr>
               </tbody>
-            </table>
-
-            <table style="width: 50%;">
-              <tr>
-                <td style="width: 20%;">
-                  <strong>Adelanto:</strong>
-                </td>
-                <td style="width: 80%;">
-                  ${{ number_format($data->total_pagado, 2, '.', ',') }}
-                </td>
-              </tr>
-              
-              <tr>
-                <td style="width: 20%;">
-                  <strong>Resta:</strong>
-                </td>
-                <td style="width: 80%;">
-                  <strong>${{ number_format($data->saldo_restante, 2, '.', ',') }}</strong>
-                </td>
-              </tr>
-            </table>
-
-            <table width="100%" style="margin-top: 15px;">
-              <tr>
-                <td style="width: 100%;">
-                  <strong>Condiciones:</strong>
-                  <ul style="margin-top: 5px; margin-bottom: 0; padding-left: 20px;">
-                      <li>Todos los pedidos se realizan más el costo de envío. En caso de tratarse de zona extendida, el costo de envío puede variar.</li>
-                      <li>Los pedidos están sujetos a disponibilidad del día <strong>Jueves</strong>.</li>
-                  </ul>
-                </td>
-              </tr>
             </table>
 
             

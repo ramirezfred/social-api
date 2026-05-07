@@ -190,6 +190,7 @@ Route::post('meta/replies', [ApiMetaController::class, 'postReplies']);
 Route::get('pexels/{per_page}/post/{post_id}', [ApiPexelsController::class, 'getImagenesPost']);
 Route::get('pexels/count/results/{query}', [ApiPexelsController::class, 'countResults']);
 Route::get('pexels/imagenes/marco', [ApiPexelsController::class, 'getImagenesMarco']);
+Route::get('pexels/test/api', [ApiPexelsController::class, 'testApiPexels']);
 
 //----Pruebas WebhooksController
 Route::get('webhooks/meta', [WebhooksController::class, 'meta']);

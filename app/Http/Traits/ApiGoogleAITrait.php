@@ -31,10 +31,11 @@ trait ApiGoogleAITrait
     public static $path_googleAI = "/v1beta";
     // public static $model_googleAI = "gemini-1.5-flash";
     // public static $model_googleAI = "gemini-2.0-flash";
-    public static $model_googleAI = "gemini-2.5-flash";
-    // public static $apiKey_googleAI = "AIzaSyB16GH91d0oO8PPAujCziU2NoDfoi5btH0";
-    // public static $apiKey_googleAI = "AIzaSyABZpyK8Ao4jc9HqRCpRFvhcgDeoxPTU7I";
-    public static $apiKey_googleAI = "AIzaSyDzeTSlCY8hPNyGdSM9D1XNj88ic8N00wo";
+    // public static $model_googleAI = "gemini-2.5-flash";
+    public static $model_googleAI = "gemini-3-flash-preview";
+    public static $apiKey_googleAI = "AIzaSyBhV4_A9YE0PB_YH8bm7F8NaUtJb0FTsSg";
+    // public static $apiKey_googleAI = "AIzaSyCTMvH3ZVFAACsASinCiU1yuNMwhBvBb7U";
+    // public static $apiKey_googleAI = "AIzaSyAPqnQs_hd-Mg8V1sBBiQJSa4Xg1Pe8J3w";
 
     public static $cache_ttl_googleAI = "3600s"; //1 hora
     public static $cache_model_googleAI  = "gemini-1.5-flash-001";
@@ -81,7 +82,7 @@ trait ApiGoogleAITrait
     public static function _textosGoogleAI($brand_id)
     {
 
-        $result = self::checkGoogleSlidingWindowWithWait(18);
+        $result = self::checkGoogleSlidingWindowWithWait(15);
 
         if (!$result['allowed']) {
             return [
@@ -262,7 +263,7 @@ trait ApiGoogleAITrait
 
     public static function _palabrasClaveEmpresaGoogleAI($brand_id)
     {
-        $result = self::checkGoogleSlidingWindowWithWait(18);
+        $result = self::checkGoogleSlidingWindowWithWait(15);
 
         if (!$result['allowed']) {
             return [
@@ -430,7 +431,7 @@ trait ApiGoogleAITrait
 
     public static function _palabrasClavePostGoogleAI($post_id)
     {
-        $result = self::checkGoogleSlidingWindowWithWait(18);
+        $result = self::checkGoogleSlidingWindowWithWait(15);
 
         if (!$result['allowed']) {
             return [
@@ -584,7 +585,7 @@ trait ApiGoogleAITrait
 
     public static function _palabrasClaveEmpresaSinonimosGoogleAI($brand_id)
     {
-        $result = self::checkGoogleSlidingWindowWithWait(18);
+        $result = self::checkGoogleSlidingWindowWithWait(15);
 
         if (!$result['allowed']) {
             return [
