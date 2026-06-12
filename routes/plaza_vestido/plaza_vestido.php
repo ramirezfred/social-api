@@ -7,13 +7,49 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\PublicationController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\CashCloseController;
+
 use App\Http\Controllers\PruebasController;
 
 Route::group(['middleware' => ['jwt.verify']], function() {
 
     
+    // ============================================
+    // GASTOS
+    // ============================================
+    Route::prefix('expenses')->group(function () {
+        // Listar gastos
+        Route::get('/', [ExpenseController::class, 'index']);
+        
+        // Crear nuevo gasto
+        Route::post('/', [ExpenseController::class, 'store']);
+        
+        // Actualizar gasto
+        Route::put('/{id}', [ExpenseController::class, 'update']);
+        
+        // Eliminar gasto
+        Route::delete('/{id}', [ExpenseController::class, 'destroy']);
+    });
 
-
+    // ============================================
+    // NOMINAS    
+    // ============================================
+    Route::prefix('payrolls')->group(function () {
+        // Listar nominas
+        Route::get('/', [PayrollController::class, 'index']);
+        
+        // Crear nueva nomina
+        Route::post('/', [PayrollController::class, 'store']);
+        
+        // Actualizar nomina
+        Route::put('/{id}', [PayrollController::class, 'update']);
+        
+        // Eliminar nomina
+        Route::delete('/{id}', [PayrollController::class, 'destroy']);
+    });
+   
 
 });
 
@@ -33,6 +69,9 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         
         // Eliminar proveedor
         Route::delete('/{id}', [SupplierController::class, 'destroy']);
+
+        // Consultar el lo generado por rango de fecha
+        Route::get('/{id}/generado-por-semana', [SupplierController::class, 'getGeneradoPorSemana']);
     });
 
     // ============================================
@@ -77,6 +116,8 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         Route::get('/reporte/semanal', [QuoteController::class, 'reporteSemanal']);
         Route::get('/reporte/general', [QuoteController::class, 'reporteGeneral']);
         Route::get('/reporte/generalSimple', [QuoteController::class, 'reporteGeneralSimple']);
+
+        Route::get('/get/estadisticas', [QuoteController::class, 'getEstadisticas']);
         
     });
 
@@ -126,4 +167,31 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         
         // Eliminar empleado
         Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+    });
+
+    // ============================================
+    // CORTE DE CAJA
+    // ============================================
+    Route::prefix('cash-closes')->group(function () {
+
+        // Lista de cortes de caja
+        Route::get('/', [CashCloseController::class, 'index']);
+
+        // Listar cierres de caja pendientes por proveedor
+        Route::get('/proveedores-pendientes', [CashCloseController::class, 'getPendingSuppliers']);
+    
+        // Listar cortes globales (B y C)
+        Route::get('/globales', [CashCloseController::class, 'getGlobalCuts']);
+
+        // Guardar corte A (pago a proveedor)
+        Route::post('/corte-proveedor', [CashCloseController::class, 'closeSupplier']);
+
+        // Guardar corte B (ingresos menos gastos)
+        Route::post('/corte-ingresos-gastos', [CashCloseController::class, 'storeCorteIngresosGastos']);
+
+        // Guardar corte C (comisión + envíos)
+        Route::post('/corte-comision-envios', [CashCloseController::class, 'storeCorteComisionEnvios']);
+
+        // ticket de corte de caja
+        Route::get('/{id}/ticket', [CashCloseController::class, 'ticket']);
     });

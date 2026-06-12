@@ -12,6 +12,7 @@ class Supplier extends Model
     protected $table = 'suppliers';
 
     protected $fillable = [
+        'user_id',
         'razon_social',
         'email',
         'telefono',
@@ -25,7 +26,13 @@ class Supplier extends Model
     protected $casts = [
         'status' => 'boolean',
         'eliminado' => 'boolean',
+        'user_id' => 'integer',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     // --- Scopes ---
     public function scopeActivos($query)

@@ -28,6 +28,8 @@ class QuoteDetail extends Model
         'impuesto',
         'descuento', 
         'total',
+        'pago_proveedor_estado', // 'pendiente', 'pagado'
+        'cash_close_id',
     ];
 
     protected $casts = [

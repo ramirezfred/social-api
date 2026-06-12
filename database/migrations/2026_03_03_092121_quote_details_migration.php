@@ -39,6 +39,9 @@ class QuoteDetailsMigration extends Migration
             $table->foreign('quote_id')->references('id')->on('quotes')->onDelete('cascade');
             // $table->foreign('supplier_id')->references('id')->on('suppliers');
 
+            $table->string('pago_proveedor_estado')->default('pendiente'); // 'pendiente' | 'pagado'
+            $table->unsignedBigInteger('cash_close_id')->nullable(); // Llave foránea al corte
+
         });
     }
 

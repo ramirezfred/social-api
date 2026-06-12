@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 
 use App\Models\Publication;
 use App\Models\PublicationImage;
+use App\Models\User;
+
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -21,13 +23,18 @@ class PublicationController extends Controller
      * GET /api/publications
      * Lista solo las publicaciones en estado borrador
      */
-    public function index()
+    public function index(Request $request)
     {
-        $publications = Publication::with([
+        $query = Publication::where('estado', 'borrador');
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        $publications = $query->with([
             'images', 
             'supplier:id,razon_social,categoria'
         ])
-        ->where('estado', 'borrador')
         ->orderBy('created_at', 'desc')
         ->get();
 
@@ -40,14 +47,53 @@ class PublicationController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
+            'user_id'       => 'required|numeric',
             'supplier_id'   => 'required|exists:suppliers,id',
             'texto'         => 'required|string',
             'images'        => 'required|array|min:1|max:9',
             'images.*'      => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
 
-        $repetida = Publication::where('supplier_id', $request->supplier_id)
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en la validación de datos.',
+                'data' => $validator->errors()
+            ], 500);
+        }
+
+        $user = User::buscarPorId($request->user_id);
+        if (!$user)
+        {
+
+            \Log::error("[PublicacionUser401]", [
+                'user_id'     => $request->user_id,
+                'message' => 'Usuario no encontrado.',
+            ]);
+
+            // Devolvemos error codigo http 404
+            return response()->json([
+                'success' => false,
+                'message'=>'Usuario no encontrado.'
+            ], 401);
+        }
+
+        // if($user->status != 1)
+        // {
+        //     \Log::error("[PublicacionUser422]", [
+        //         'user_id'     => $request->user_id,
+        //         'message' => 'El usuario no está activo.',
+        //     ]);
+
+        //     return response()->json([
+        //         'success' => false,
+        //         'message'=>'El usuario no está activo.'
+        //     ], 422);
+        // }
+
+        $repetida = Publication::where('user_id', $request->user_id)
+            ->where('supplier_id', $request->supplier_id)
             ->where('texto', $request->texto)
             ->first();
 
@@ -55,6 +101,7 @@ class PublicationController extends Controller
 
             \Log::error("[PublicacionRepetida]", [
                 'id'          => $repetida->id,
+                'user_id'     => $request->user_id,
                 'supplier_id' => $request->supplier_id,
                 'texto'       => $request->texto
             ]);
@@ -74,6 +121,7 @@ class PublicationController extends Controller
         try {
 
             $publication = Publication::create([
+                'user_id'     => $request->user_id,
                 'supplier_id' => $request->supplier_id,
                 'texto'       => $request->texto,
                 'estado'      => 'borrador',
@@ -278,6 +326,10 @@ class PublicationController extends Controller
             $start = Carbon::parse($request->fecha_inicio)->startOfDay();
             $end   = Carbon::parse($request->fecha_fin)->endOfDay();
             $query->whereBetween('created_at', [$start, $end]);
+        }
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
         }
 
         $publications = $query->with([

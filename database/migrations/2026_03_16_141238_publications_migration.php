@@ -15,6 +15,7 @@ class PublicationsMigration extends Migration
     {
         Schema::create('publications', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->unsignedBigInteger('supplier_id'); // relación directa proveedor
             $table->text('texto');
             $table->string('estado')->default('borrador'); // borrador, publicada

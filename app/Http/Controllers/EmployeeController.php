@@ -11,17 +11,22 @@ use App\Models\User;
 
 class EmployeeController extends Controller
 {
-    public function index()
+
+    public function index(Request $request)
     {
-        $coleccion = User::noEliminados()
-            ->where('tipo', 4)
-            ->orderBy('id', 'desc')
-            ->get();
+        $query = User::noEliminados()
+            ->where('tipo', 4);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $coleccion = $query->orderBy('id', 'desc')->get();
 
         return response()->json([
             'success' => true,
-            'data'=>$coleccion
-        ], 200);
+            'data' => $coleccion,
+        ]);
     }
 
     public function store(Request $request)

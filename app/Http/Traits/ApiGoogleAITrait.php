@@ -32,10 +32,12 @@ trait ApiGoogleAITrait
     // public static $model_googleAI = "gemini-1.5-flash";
     // public static $model_googleAI = "gemini-2.0-flash";
     // public static $model_googleAI = "gemini-2.5-flash";
-    public static $model_googleAI = "gemini-3-flash-preview";
-    public static $apiKey_googleAI = "AIzaSyBhV4_A9YE0PB_YH8bm7F8NaUtJb0FTsSg";
-    // public static $apiKey_googleAI = "AIzaSyCTMvH3ZVFAACsASinCiU1yuNMwhBvBb7U";
-    // public static $apiKey_googleAI = "AIzaSyAPqnQs_hd-Mg8V1sBBiQJSa4Xg1Pe8J3w";
+    public static $model_googleAI = "gemini-3.1-flash-lite";
+
+    public static function getApiKey()
+    {
+        return env('GOOGLE_AI_API_KEY');
+    }
 
     public static $cache_ttl_googleAI = "3600s"; //1 hora
     public static $cache_model_googleAI  = "gemini-1.5-flash-001";
@@ -199,7 +201,7 @@ trait ApiGoogleAITrait
         print($fields); */
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".static::$apiKey_googleAI);
+        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".self::getApiKey());
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             "Content-Type: application/json"
         ));
@@ -356,7 +358,7 @@ trait ApiGoogleAITrait
         print($fields); */
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".static::$apiKey_googleAI);
+        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".self::getApiKey());
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             "Content-Type: application/json"
         ));
@@ -511,7 +513,7 @@ trait ApiGoogleAITrait
         print($fields); */
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".static::$apiKey_googleAI);
+        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".self::getApiKey());
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             "Content-Type: application/json"
         ));
@@ -675,7 +677,7 @@ trait ApiGoogleAITrait
         print($fields); */
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".static::$apiKey_googleAI);
+        curl_setopt($ch, CURLOPT_URL, static::$base_url_googleAI.static::$path_googleAI."/models/".static::$model_googleAI.":generateContent?key=".self::getApiKey());
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             "Content-Type: application/json"
         ));

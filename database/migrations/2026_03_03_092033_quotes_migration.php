@@ -15,6 +15,8 @@ class QuotesMigration extends Migration
     {
         Schema::create('quotes', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('user_id')->nullable();
+
             $table->string('folio')->nullable();
             
             $table->string('cliente')->nullable();
@@ -47,6 +49,7 @@ class QuotesMigration extends Migration
             $table->string('pago_estado', 20)->default('pendiente'); // pendiente | adelantado | pagado
             
             $table->string('tipo_entrega', 20)->nullable(); // plaza, envio
+            $table->decimal('costo_guia', 15, 2)->nullable(); // Costo de guía para envíos
 
             $table->string('api_tipo_pago')->nullable();
             $table->string('conekta_id')->nullable();
@@ -56,6 +59,13 @@ class QuotesMigration extends Migration
 
             $table->text('notas')->nullable();
             $table->string('pdf')->nullable();
+
+            $table->string('corte_b_estado')->default('pendiente'); // 'pendiente' | 'cerrado'
+            $table->unsignedBigInteger('cash_close_b_id')->nullable(); // Llave foránea al corte
+
+            $table->string('corte_c_estado')->default('pendiente'); // 'pendiente' | 'cerrado'
+            $table->unsignedBigInteger('cash_close_c_id')->nullable(); // Llave foránea al corte
+
             $table->boolean('eliminado')->default(false);
             $table->timestamps();
         });

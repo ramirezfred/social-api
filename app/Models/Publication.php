@@ -12,10 +12,15 @@ class Publication extends Model
     protected $table = 'publications';
 
     protected $fillable = [
+        'user_id',
         'supplier_id', 
         'texto',
         'estado', // borrador, publicada
         'publication_date'
+    ];
+
+    protected $casts = [
+        'user_id' => 'integer',
     ];
 
     /* =======================
@@ -29,6 +34,11 @@ class Publication extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     

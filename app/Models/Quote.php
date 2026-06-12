@@ -12,6 +12,7 @@ class Quote extends Model
     protected $table = 'quotes';
 
     protected $fillable = [
+        'user_id',
         'folio', 
         'cliente',
         'email', 
@@ -29,6 +30,7 @@ class Quote extends Model
         'pago_estado', // pendiente | adelantado | pagado
 
         'tipo_entrega', // plaza, envio
+        'costo_guia', // Costo de guía para envíos
 
         'api_tipo_pago',
         'conekta_id',
@@ -38,6 +40,13 @@ class Quote extends Model
 
         'notas',
         'pdf',
+
+        'corte_b_estado', // 'pendiente', 'cerrado'
+        'cash_close_b_id', 
+
+        'corte_c_estado', // 'pendiente', 'cerrado'
+        'cash_close_c_id', 
+
         'eliminado', // 0=no eliminada 1=eliminada
     ];
 
@@ -49,6 +58,7 @@ class Quote extends Model
     protected $casts = [
         'flag_reembolso' => 'boolean',
         'eliminado' => 'boolean',
+        'user_id' => 'integer',
     ];
 
     protected $appends = [
@@ -67,6 +77,11 @@ class Quote extends Model
     public function pagos()
     {
         return $this->hasMany(QuotePago::class, 'quote_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     /* =======================

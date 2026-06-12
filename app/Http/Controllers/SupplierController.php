@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\DB;
 use Exception;
 
 use App\Models\Supplier;
+use App\Models\User;
+
+use Carbon\Carbon;
 
 class SupplierController extends Controller
 {
@@ -30,6 +33,10 @@ class SupplierController extends Controller
             });
         }
 
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
         $proveedores = $query->orderBy('id', 'desc')->get();
 
         return response()->json([
@@ -41,6 +48,7 @@ class SupplierController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'user_id' => 'required|numeric',
             'razon_social' => 'required|string|max:255',
             'email' => 'nullable|email|max:150',
             'telefono' => 'nullable|string|max:30',
@@ -55,6 +63,24 @@ class SupplierController extends Controller
                 'success' => false,
                 'message' => 'Error en la validación de datos.',
                 'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = User::buscarPorId($request->input('user_id'));
+        if (!$user)
+        {
+            // Devolvemos error codigo http 404
+            return response()->json([
+                'success' => false,
+                'message'=>'Usuario no encontrado.'
+            ], 404);
+        }
+
+        if($user->status != 1)
+        {
+            return response()->json([
+                'success' => false,
+                'message'=>'El usuario no está activo.'
             ], 422);
         }
 
@@ -250,4 +276,62 @@ class SupplierController extends Controller
             'message'=>'Se ha eliminado correctamente el registro.'
         ], 200);
     }
+
+    public function getGeneradoPorSemana(Request $request, $id)
+    {
+
+        $validator = Validator::make($request->all(), [
+
+            //'supplier_id'  => 'required|integer|exists:suppliers,id',
+            'fecha_inicio' => 'required|date',
+            'fecha_fin' => 'required|date',
+            //'fecha_fin'    => 'required|date|after_or_equal:fecha_inicio',
+
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en la validación de datos.',
+                'data' => $validator->errors()
+            ], 422);
+        }
+
+        $supplier_id = $request->input('supplier_id'); 
+        $fecha_inicio = Carbon::parse($request->fecha_inicio)->startOfDay();
+        $fecha_fin    = Carbon::parse($request->fecha_fin)->endOfDay();
+
+        $generado = DB::table('quote_details')
+            ->join('suppliers', 'quote_details.supplier_id', '=', 'suppliers.id')
+            ->join('quotes', 'quote_details.quote_id', '=', 'quotes.id')
+            ->whereIn('quotes.estado', ['en curso', 'finalizada'])
+            ->where('quotes.pago_estado', 'pagado')
+            ->whereBetween('quotes.created_at', [$fecha_inicio, $fecha_fin])
+            ->where('quote_details.supplier_id', $id)
+            ->select(
+                'suppliers.id as supplier_id',
+                'suppliers.razon_social',
+                DB::raw('ROUND(SUM(quote_details.total), 2) as total_vendido'),
+                DB::raw('ROUND(SUM(quote_details.total) * 0.90, 2) as total_deuda') // 90% para el proveedor (10% comisión)
+            )
+            ->groupBy('suppliers.id', 'suppliers.razon_social')
+            ->first();
+
+        if (!$generado || is_null($generado->total_vendido)) {
+            return response()->json([
+                'success' => true,
+                'data' => null,
+                'message' => 'No hay órdenes en el período seleccionado'
+            ]);
+        }
+
+        $generado->total_vendido = round($generado->total_vendido, 2);
+        $generado->total_deuda = round($generado->total_deuda, 2);
+
+        return response()->json([
+            'success' => true,
+            'data' => $generado,
+        ]);
+    }
+
 }

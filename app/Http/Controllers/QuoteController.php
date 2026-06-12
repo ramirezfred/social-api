@@ -20,6 +20,7 @@ use App\Models\Supplier;
 use App\Models\Quote;
 use App\Models\QuoteDetail;
 use App\Models\QuotePago;
+use App\Models\User;
 
 use Exception;
 
@@ -53,14 +54,22 @@ class QuoteController extends Controller
             $query->whereBetween('created_at', [$start, $end]);
         }
 
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
         $coleccion = $query->with(['detalles.supplier', 'pagos'])
             ->withSum('detalles as nro_productos', 'cantidad')
             ->orderBy('id', 'desc')
             ->get();
 
+        $stats = $this->stats($request->user_id);
+
         return response()->json([
             'success' => true,
-            'data' => $coleccion
+            'estadisticas' => $stats,
+            'data' => $coleccion,
+            
         ], 200);
     }
 
@@ -71,6 +80,7 @@ class QuoteController extends Controller
     {
         $validator = Validator::make($request->all(), [
 
+            'user_id' => 'required|numeric',
             'folio' => 'nullable|string',
             'cliente' => 'required|string|max:255',
             'email' => 'nullable|email|max:150',
@@ -108,6 +118,24 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        $user = User::buscarPorId($request->input('user_id'));
+        if (!$user)
+        {
+            // Devolvemos error codigo http 404
+            return response()->json([
+                'success' => false,
+                'message'=>'Usuario no encontrado.'
+            ], 404);
+        }
+
+        if($user->status != 1)
+        {
+            return response()->json([
+                'success' => false,
+                'message'=>'El usuario no está activo.'
+            ], 422);
+        }
+
         foreach ($request->detalles as $detalle) {
             $proveedor = Supplier::noEliminados()
                 ->where('id', $detalle['supplier_id'])
@@ -127,6 +155,7 @@ class QuoteController extends Controller
         try {
 
             $quote = Quote::create([
+                'user_id' => $request->user_id,
                 'cliente' => $request->cliente,
                 'email' => $request->email ?? null,
                 'telefono' => $request->telefono,
@@ -385,6 +414,7 @@ class QuoteController extends Controller
 
             'estado' => 'sometimes|string|max:20|in:finalizada,cancelada',
             'tipo_entrega' => 'sometimes|string|max:20|in:plaza,envio',
+            'costo_guia' => 'sometimes|nullable|numeric|min:0.01',
 
         ]);
 
@@ -405,6 +435,7 @@ class QuoteController extends Controller
             $quote->update($request->only([
                 'estado',
                 'tipo_entrega',
+                'costo_guia',
             ]));
             
             DB::commit();
@@ -1138,5 +1169,280 @@ class QuoteController extends Controller
             'success' => true,
             'data' => $url
         ], 200);
+    }
+
+    public function getEstadisticas(Request $request)
+    {
+        $user_id      = $request->user_id;
+        $fecha_inicio = Carbon::parse($request->fecha_inicio)->startOfDay();
+        $fecha_fin    = Carbon::parse($request->fecha_fin)->endOfDay();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ADELANTADO y PAGADO — a nivel general
+        |--------------------------------------------------------------------------
+        */
+        $statsGeneral = Quote::noEliminados()
+            ->whereBetween('created_at', [$fecha_inicio, $fecha_fin])
+            ->whereIn('estado', ['en curso', 'finalizada'])
+            ->selectRaw("
+                COUNT(CASE WHEN pago_estado = 'adelantado' THEN 1 END)               AS adelantado_cantidad,
+                COALESCE(SUM(CASE WHEN pago_estado = 'adelantado' THEN total END), 0) AS adelantado_total,
+                COUNT(CASE WHEN pago_estado = 'pagado'     THEN 1 END)               AS pagado_cantidad,
+                COALESCE(SUM(CASE WHEN pago_estado = 'pagado'     THEN total END), 0) AS pagado_total
+            ")
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | BASE QUERY (rango de fechas)
+        |--------------------------------------------------------------------------
+        */
+        $baseQuery = Quote::noEliminados()
+            ->where('user_id', $user_id)
+            ->whereBetween('created_at', [$fecha_inicio, $fecha_fin])
+            ->whereIn('estado', ['en curso', 'finalizada']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | ADELANTADO y PAGADO — una sola query con CASE
+        |--------------------------------------------------------------------------
+        */
+        $stats = (clone $baseQuery)
+            ->selectRaw("
+                COUNT(CASE WHEN pago_estado = 'adelantado' THEN 1 END)               AS adelantado_cantidad,
+                COALESCE(SUM(CASE WHEN pago_estado = 'adelantado' THEN total END), 0) AS adelantado_total,
+                COUNT(CASE WHEN pago_estado = 'pagado'     THEN 1 END)               AS pagado_cantidad,
+                COALESCE(SUM(CASE WHEN pago_estado = 'pagado'     THEN total END), 0) AS pagado_total
+            ")
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | MEJOR SEMANA HISTÓRICA — Viernes a Jueves
+        |
+        | Restamos 4 días para que el "lunes ISO" caiga en viernes:
+        |   Viernes   - 4 = Lunes  inicio de semana ISO
+        |   Jueves    - 4 = Domingo → semana ISO anterior 
+        |
+        | Con YEARWEEK(..., 3) agrupamos correctamente y luego
+        | reconstruimos el viernes exacto con ADDDATE + YEARWEEK.
+        |--------------------------------------------------------------------------
+        */
+        $mejorSemana = Quote::noEliminados()
+            ->where('user_id', $user_id)
+            ->whereIn('estado', ['en curso', 'finalizada'])
+            ->whereIn('pago_estado', ['adelantado', 'pagado'])
+            ->whereDate('created_at', '>', '2026-03-19')
+            ->selectRaw("
+                YEARWEEK(DATE_SUB(created_at, INTERVAL 4 DAY), 3)  AS semana_id,
+                COUNT(*)                                            AS cantidad,
+                COALESCE(SUM(total), 0)                             AS monto_total,
+                DATE_ADD(
+                    STR_TO_DATE(
+                        CONCAT(YEARWEEK(MIN(DATE_SUB(created_at, INTERVAL 4 DAY)), 3), ' Monday'),
+                        '%X%V %W'
+                    ),
+                    INTERVAL 4 DAY
+                )                                                   AS viernes_inicio
+            ")
+            ->groupBy('semana_id')
+            ->orderByDesc('monto_total')
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | RANGO DE LA MEJOR SEMANA
+        |--------------------------------------------------------------------------
+        */
+        $rangoSemana = null;
+
+        if ($mejorSemana) {
+            $viernes = Carbon::parse($mejorSemana->viernes_inicio)->startOfDay();
+            $jueves  = $viernes->copy()->addDays(6)->endOfDay();
+
+            $rangoSemana = [
+                'fecha_inicio' => $viernes->toDateTimeString(),
+                'fecha_fin'    => $jueves->toDateTimeString(),
+                'cantidad'     => (int)   $mejorSemana->cantidad,
+                'total'        => (float) $mejorSemana->monto_total,
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESPUESTA
+        |--------------------------------------------------------------------------
+        */
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'adelantado_general' => [
+                    'cantidad' => (int)   $statsGeneral->adelantado_cantidad,
+                    'total'    => (float) $statsGeneral->adelantado_total,
+                ],
+                'pagado_general' => [
+                    'cantidad' => (int)   $statsGeneral->pagado_cantidad,
+                    'total'    => (float) $statsGeneral->pagado_total,
+                ],
+                'adelantado' => [
+                    'cantidad' => (int)   $stats->adelantado_cantidad,
+                    'total'    => (float) $stats->adelantado_total,
+                ],
+                'pagado' => [
+                    'cantidad' => (int)   $stats->pagado_cantidad,
+                    'total'    => (float) $stats->pagado_total,
+                ],
+                'mejor_semana_historica' => $rangoSemana,
+            ]
+        ]);
+    }
+
+    // Función auxiliar para calcular el inicio de semana (viernes)
+    public function getWeekStartFromFriday($date)
+    {
+        // Si es viernes, empezar desde hoy, sino ir al viernes anterior
+        return $date->copy()->isFriday() 
+            ? $date->copy()->startOfDay() 
+            : $date->copy()->previous(Carbon::FRIDAY)->startOfDay();
+    }
+
+    public function stats($user_id)
+    {
+
+        // Semana actual
+        $inicioEstaSemana = $this->getWeekStartFromFriday(Carbon::now());
+        $finEstaSemana = $inicioEstaSemana->copy()->addDays(6)->endOfDay(); // Jueves
+
+        // Semana pasada (restar 7 días al inicio y fin de la semana actual)
+        $inicioSemanaPasada = $inicioEstaSemana->copy()->subWeek();
+        $finSemanaPasada = $finEstaSemana->copy()->subWeek();
+
+        // --- CONSULTA UNIFICADA ---
+        $statsSemanales = Quote::noEliminados()
+            ->where('user_id', $user_id)
+            ->whereIn('estado', ['en curso', 'finalizada'])
+            ->selectRaw("
+                -- ----------------------------------------------------
+                -- ESTADÍSTICAS: SEMANA EN CURSO
+                -- ----------------------------------------------------
+                -- Pendientes (Contador y Suma)
+                COUNT(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'pendiente' THEN 1 END) AS esta_pendiente_cantidad,
+                COALESCE(SUM(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'pendiente' THEN total END), 0) AS esta_pendiente_total,
+                
+
+                -- Adelantados (Contador y Suma)
+                COUNT(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'adelantado' THEN 1 END) AS esta_adelantado_cantidad,
+                COALESCE(SUM(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'adelantado' THEN total END), 0) AS esta_adelantado_total,
+                
+                -- Pagados (Contador y Suma)
+                COUNT(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'pagado' THEN 1 END) AS esta_pagado_cantidad,
+                COALESCE(SUM(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'pagado' THEN total END), 0) AS esta_pagado_total,
+
+                -- ----------------------------------------------------
+                -- ESTADÍSTICAS: SEMANA PASADA
+                -- ----------------------------------------------------
+                -- Adelantados (Contador y Suma)
+                COUNT(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'adelantado' THEN 1 END) AS pasada_adelantado_cantidad,
+                COALESCE(SUM(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'adelantado' THEN total END), 0) AS pasada_adelantado_total,
+                
+                -- Pagados (Contador y Suma)
+                COUNT(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'pagado' THEN 1 END) AS pasada_pagado_cantidad,
+                COALESCE(SUM(CASE WHEN created_at BETWEEN ? AND ? AND pago_estado = 'pagado' THEN total END), 0) AS pasada_pagado_total
+            ", [
+                // === Parámetros Semana en Curso ===
+                $inicioEstaSemana, $finEstaSemana,   // esta_pendiente_cantidad
+                $inicioEstaSemana, $finEstaSemana,   // esta_pendiente_total
+                $inicioEstaSemana, $finEstaSemana,   // esta_adelantado_cantidad
+                $inicioEstaSemana, $finEstaSemana,   // esta_adelantado_total
+                $inicioEstaSemana, $finEstaSemana,   // esta_pagado_cantidad
+                $inicioEstaSemana, $finEstaSemana,   // esta_pagado_total
+
+                // === Parámetros Semana Pasada ===
+                $inicioSemanaPasada, $finSemanaPasada, // pasada_adelantado_cantidad
+                $inicioSemanaPasada, $finSemanaPasada, // pasada_adelantado_total
+                $inicioSemanaPasada, $finSemanaPasada, // pasada_pagado_cantidad
+                $inicioSemanaPasada, $finSemanaPasada  // pasada_pagado_total
+            ])
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | MEJOR SEMANA HISTÓRICA — Viernes a Jueves
+        |
+        | Restamos 4 días para que el "lunes ISO" caiga en viernes:
+        |   Viernes   - 4 = Lunes  inicio de semana ISO
+        |   Jueves    - 4 = Domingo → semana ISO anterior 
+        |
+        | Con YEARWEEK(..., 3) agrupamos correctamente y luego
+        | reconstruimos el viernes exacto con ADDDATE + YEARWEEK.
+        |--------------------------------------------------------------------------
+        */
+        $mejorSemana = Quote::noEliminados()
+            ->where('user_id', $user_id)
+            ->whereIn('estado', ['en curso', 'finalizada'])
+            ->whereIn('pago_estado', ['adelantado', 'pagado'])
+            ->whereDate('created_at', '>', '2026-03-19')
+            ->selectRaw("
+                DATE_SUB(
+                    DATE(created_at),
+                    INTERVAL ((DAYOFWEEK(created_at) + 1) % 7) DAY
+                ) AS viernes_inicio,
+
+                COUNT(*) AS cantidad,
+                COALESCE(SUM(total), 0) AS monto_total
+            ")
+            ->groupBy('viernes_inicio')
+            ->orderByDesc('monto_total')
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | RANGO DE LA MEJOR SEMANA
+        |--------------------------------------------------------------------------
+        */
+        $rangoSemana = null;
+
+        if ($mejorSemana) {
+            $viernes = Carbon::parse($mejorSemana->viernes_inicio)->startOfDay();
+            $jueves  = $viernes->copy()->addDays(6)->endOfDay();
+
+            $rangoSemana = [
+                'fecha_inicio' => $viernes->toDateTimeString(),
+                'fecha_fin'    => $jueves->toDateTimeString(),
+                'cantidad'     => (int)   $mejorSemana->cantidad,
+                'total'        => (float) $mejorSemana->monto_total,
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESPUESTA
+        |--------------------------------------------------------------------------
+        */
+        return [
+            'pendiente_esta' => [
+                'cantidad' => (int)   $statsSemanales->esta_pendiente_cantidad,
+                'total'    => (float) $statsSemanales->esta_pendiente_total,
+            ],
+            'adelantado_esta' => [
+                'cantidad' => (int)   $statsSemanales->esta_adelantado_cantidad,
+                'total'    => (float) $statsSemanales->esta_adelantado_total,
+            ],
+            'pagado_esta' => [
+                'cantidad' => (int)   $statsSemanales->esta_pagado_cantidad,
+                'total'    => (float) $statsSemanales->esta_pagado_total,
+            ],
+            'adelantado_pasada' => [
+                'cantidad' => (int)   $statsSemanales->pasada_adelantado_cantidad,
+                'total'    => (float) $statsSemanales->pasada_adelantado_total,
+            ],
+            'pagado_pasada' => [
+                'cantidad' => (int)   $statsSemanales->pasada_pagado_cantidad,
+                'total'    => (float) $statsSemanales->pasada_pagado_total,
+            ],
+            'mejor_semana_historica' => $rangoSemana,
+            
+        ];
     }
 }
