@@ -477,4 +477,85 @@ class PublicationController extends Controller
         });
     }
 
+    public function editar($id, Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'supplier_id'   => 'required|exists:suppliers,id',
+            'texto'         => 'required|string',
+            'images'        => 'required|array|min:1|max:9',
+            'images.*'      => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en la validación de datos.',
+                'data' => $validator->errors()
+            ], 500);
+        }
+
+        $publication = Publication::find($id);
+
+        if (!$publication) {
+            return response()->json(['message' => 'Publicación no encontrada'], 404);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($publication->images as $image) {
+                Storage::disk('public_root')->delete($image->image_path);
+                $image->delete();
+            }
+
+            $publication->supplier_id = $request->supplier_id;
+            $publication->texto       = $request->texto;
+            $publication->save();
+
+            $savedPaths = [];
+
+            foreach ($request->file('images') as $image) {
+                $path = $image->store('images/publications', 'public_root');
+
+                PublicationImage::create([
+                    'publication_id' => $publication->id,
+                    'image_path'     => $path,
+                ]);
+
+                $savedPaths[] = $path;
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Publicación editada'
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error al editar la publicación'], 500);
+        }
+    }
+
+    public function showNormal($id)
+    {
+        $publication = Publication::find($id);
+
+        if (!$publication) {
+            return response()->json(['message' => 'Publicación no encontrada'], 404);
+        }
+
+        $publication->load([
+            'images', 
+            'supplier:id,razon_social,categoria'
+        ]);
+
+        return response()->json([
+            'data' => $publication,
+        ]);
+    }
+
+
+
 }

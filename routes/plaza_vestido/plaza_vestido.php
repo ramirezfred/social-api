@@ -77,75 +77,101 @@ Route::group(['middleware' => ['jwt.verify']], function() {
     // ============================================
     // COTIZACIONES
     // ============================================
-    Route::prefix('quotes')->group(function () {
-        // Listar cotizaciones
-        Route::get('/', [QuoteController::class, 'index']);
+    // Route::prefix('quotes')->group(function () {
+    //     // Listar cotizaciones
+    //     Route::get('/', [QuoteController::class, 'index']);
         
-        // Crear nueva cotización
+    //     // Crear nueva cotización
+    //     Route::post('/', [QuoteController::class, 'store']);
+
+    //     // Actualizar cotización
+    //     Route::put('/{id}', [QuoteController::class, 'update']);
+
+    //     // Actualizar estado y/o tipo de entrega
+    //     Route::put('/{id}/set_estado_and_entrega', [QuoteController::class, 'updateEstadoYEntrega']);
+
+    //     // Ver detalle de cotización
+    //     Route::get('/{id}', [QuoteController::class, 'show']);
+
+    //     // Eliminar cotización
+    //     Route::delete('/{id}', [QuoteController::class, 'destroy']);
+
+    //     // Generar ticket de cotización
+    //     Route::get('/{id}/ticket', [QuoteController::class, 'ticket']); 
+
+    //     // Generar link de ticket de cotización acortado 
+    //     Route::get('/{id}/ticket_acortado', [QuoteController::class, 'ticketAcortado']); 
+
+    //     Route::put('/{id}/adelanto', [QuoteController::class, 'updateAdelanto']);
+
+    //     // Route::get('/migrar/pagos/legacy', [QuoteController::class, 'migrarPagosLegacy']);
+    //     Route::post('/{id}/pago', [QuoteController::class, 'registrarPago']);
+
+    //     // Generar email de cotización
+    //     // Route::get('/{id}/email', [QuoteController::class, 'emailQuote']);
+
+    //     // Route::get('/eliminar/pago/{id}', [QuoteController::class, 'destroyPago']);
+    //     // Route::get('/set/estado/{id}', [QuoteController::class, 'setEstado']);
+
+    //     Route::get('/reporte/semanal', [QuoteController::class, 'reporteSemanal']);
+    //     Route::get('/reporte/general', [QuoteController::class, 'reporteGeneral']);
+    //     Route::get('/reporte/generalSimple', [QuoteController::class, 'reporteGeneralSimple']);
+    //     Route::get('/reporte/generalIngresosEgresos', [PruebasController::class, 'reporteIngresosEgresos']);
+
+    //     Route::get('/get/estadisticas', [QuoteController::class, 'getEstadisticas']);
+        
+    // });
+
+    Route::prefix('quotes')->group(function () {
+        // 1. RUTAS ESTÁTICAS (Sin parámetros)
+        Route::get('/', [QuoteController::class, 'index']);
         Route::post('/', [QuoteController::class, 'store']);
-
-        // Actualizar cotización
-        Route::put('/{id}', [QuoteController::class, 'update']);
-
-        // Actualizar estado y/o tipo de entrega
-        Route::put('/{id}/set_estado_and_entrega', [QuoteController::class, 'updateEstadoYEntrega']);
-
-        // Ver detalle de cotización
-        Route::get('/{id}', [QuoteController::class, 'show']);
-
-        // Eliminar cotización
-        Route::delete('/{id}', [QuoteController::class, 'destroy']);
-
-        // Generar ticket de cotización
-        Route::get('/{id}/ticket', [QuoteController::class, 'ticket']); 
-
-        // Generar link de ticket de cotización acortado 
-        Route::get('/{id}/ticket_acortado', [QuoteController::class, 'ticketAcortado']); 
-
-        Route::put('/{id}/adelanto', [QuoteController::class, 'updateAdelanto']);
-
-        // Route::get('/migrar/pagos/legacy', [QuoteController::class, 'migrarPagosLegacy']);
-        Route::post('/{id}/pago', [QuoteController::class, 'registrarPago']);
-
-        // Generar email de cotización
-        // Route::get('/{id}/email', [QuoteController::class, 'emailQuote']);
-
-        // Route::get('/eliminar/pago/{id}', [QuoteController::class, 'destroyPago']);
-        // Route::get('/set/estado/{id}', [QuoteController::class, 'setEstado']);
-
+        
         Route::get('/reporte/semanal', [QuoteController::class, 'reporteSemanal']);
         Route::get('/reporte/general', [QuoteController::class, 'reporteGeneral']);
         Route::get('/reporte/generalSimple', [QuoteController::class, 'reporteGeneralSimple']);
-
+        Route::get('/reporte/ingresosEgresos', [QuoteController::class, 'reporteIngresosEgresos']);
         Route::get('/get/estadisticas', [QuoteController::class, 'getEstadisticas']);
         
+        // Route::get('/migrar/pagos/legacy', [QuoteController::class, 'migrarPagosLegacy']);
+
+        // 2. RUTAS CON PARÁMETROS (MÁS ESPECÍFICAS PRIMERO)
+        Route::put('/{id}/set_estado_and_entrega', [QuoteController::class, 'updateEstadoYEntrega']);
+        Route::get('/{id}/ticket', [QuoteController::class, 'ticket']);
+        Route::get('/{id}/ticket_acortado', [QuoteController::class, 'ticketAcortado']);
+        Route::put('/{id}/adelanto', [QuoteController::class, 'updateAdelanto']);
+        Route::post('/{id}/pago', [QuoteController::class, 'registrarPago']);
+        
+        // Route::get('/{id}/email', [QuoteController::class, 'emailQuote']);
+        // Route::get('/eliminar/pago/{id}', [QuoteController::class, 'destroyPago']);
+        // Route::get('/set/estado/{id}', [QuoteController::class, 'setEstado']);
+        
+        // 3. RUTAS CATCH-ALL CON {id} (SIEMPRE AL FINAL)
+        Route::put('/{id}', [QuoteController::class, 'update']);
+        Route::get('/{id}', [QuoteController::class, 'show']);
+        Route::delete('/{id}', [QuoteController::class, 'destroy']);
     });
 
     // ============================================
     // PUBLICACIONES
     // ============================================
     Route::prefix('publications')->group(function () {
-        // Listar publicaciones
+        // 1. RUTAS ESTÁTICAS (Sin parámetros)
         Route::get('/', [PublicationController::class, 'index']);
-        
-        // Crear nueva publicacion
         Route::post('/', [PublicationController::class, 'store']);
-
-        // Obtener publicacion
-        Route::get('/{id}', [PublicationController::class, 'show']);
         
-        // Actualizar publicacion
-        Route::put('/{id}/publish', [PublicationController::class, 'publish']);
-        
-        // Eliminar publicacion
-        Route::delete('/{id}', [PublicationController::class, 'destroy']);
-
         Route::get('/crear/catalogo', [PublicationController::class, 'catalogo']);
-
         Route::get('/pruebas/catalogo', [PruebasController::class, 'catalogo']);
-
         Route::get('/borrar/publicaciones/pruebas', [PublicationController::class, 'destroyTestPublications']);
 
+        // 2. RUTAS CON PARÁMETROS (MÁS ESPECÍFICAS PRIMERO)
+        Route::get('/{id}/publicacion/normal', [PublicationController::class, 'showNormal']); // ← Más específica
+        Route::put('/{id}/publish', [PublicationController::class, 'publish']);
+        Route::post('/{id}/editar', [PublicationController::class, 'editar']);
+        
+        // 3. RUTAS CATCH-ALL CON {id} (SIEMPRE AL FINAL)
+        Route::get('/{id}', [PublicationController::class, 'show']);  // ← Esta siempre última
+        Route::delete('/{id}', [PublicationController::class, 'destroy']);
         
     });
 

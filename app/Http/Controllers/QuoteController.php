@@ -21,6 +21,8 @@ use App\Models\Quote;
 use App\Models\QuoteDetail;
 use App\Models\QuotePago;
 use App\Models\User;
+use App\Models\Expense;
+use App\Models\Payroll;
 
 use Exception;
 
@@ -1169,6 +1171,197 @@ class QuoteController extends Controller
             'success' => true,
             'data' => $url
         ], 200);
+    }
+
+    public function reporteIngresosEgresos()
+    {
+
+        /*
+        |--------------------------------------------------------------------------
+        | VENTAS SEMANALES
+        |--------------------------------------------------------------------------
+        */
+
+        $comisionPorcentaje = 0.10; // 10% variable
+
+        $ventas = Quote::noEliminados()
+            ->whereIn('estado', ['en curso', 'finalizada'])
+            ->whereIn('pago_estado', ['pagado'])
+            ->selectRaw("
+                DATE_SUB(
+                    DATE(created_at),
+                    INTERVAL ((DAYOFWEEK(created_at) + 1) % 7) DAY
+                ) AS viernes_inicio,
+
+                COUNT(*) AS cantidad,
+                COALESCE(SUM(subtotal), 0) AS total_semanal,
+                COALESCE(SUM(envio), 0) AS costo_envios
+            ")
+            ->groupBy('viernes_inicio')
+            ->get();
+
+        $dataFinalVentas = [];
+        $totalesGeneralesVentas = [
+            'cantidad' => 0,
+            'total' => 0,
+            'comision' => 0,
+            'envios' => 0
+        ];
+
+        foreach ($ventas as $item) {
+            $descuentoComision = $item['total_semanal'] * $comisionPorcentaje;
+            // $totalEntregar = $item['total_semanal'] - $descuentoComision;
+
+            $viernes = Carbon::parse($item['viernes_inicio'])->startOfDay();
+            $jueves  = $viernes->copy()->addDays(6)->endOfDay();
+
+            $fila = [
+                'fecha_inicio' => $viernes->toDateTimeString(),
+                'fecha_fin'    => $jueves->toDateTimeString(),
+                'cantidad' => (int) $item['cantidad'],
+                'total_semanal' => round($item['total_semanal'], 2),
+                'comision_percent' => ($comisionPorcentaje * 100),
+                'descuento_comision' => round($descuentoComision, 2),
+                'costo_envios' => round($item['costo_envios'], 2),
+            ];
+
+            $dataFinalVentas[] = $fila;
+
+            // Acumulamos para el pie de tabla
+            $totalesGeneralesVentas['cantidad'] += $fila['cantidad'];
+            $totalesGeneralesVentas['total'] += $fila['total_semanal'];
+            $totalesGeneralesVentas['comision'] += $fila['descuento_comision'];
+            $totalesGeneralesVentas['envios'] += $fila['costo_envios'];
+        }
+
+        $totalesGeneralesVentas = array_map(fn($v) => round($v, 2), $totalesGeneralesVentas);
+
+        /*
+        |--------------------------------------------------------------------------
+        | GASTOS
+        |--------------------------------------------------------------------------
+        */
+
+        $gastos = Expense::noEliminados()
+            ->select('id','fecha','monto','concepto')
+            ->orderBy('fecha', 'ASC')
+            ->get();
+
+        $totalGastos = $gastos->sum('monto');
+
+        /*
+        |--------------------------------------------------------------------------
+        | NOMINA
+        |--------------------------------------------------------------------------
+        */
+
+        $nominas = Payroll::noEliminados()
+            ->select('id','fecha','monto','concepto')
+            ->orderBy('fecha', 'ASC')
+            ->get();
+
+        $totalNominas = $nominas->sum('monto');
+
+        /*
+        |--------------------------------------------------------------------------
+        | ADEUDO A PROVEEDORES
+        |--------------------------------------------------------------------------
+        */
+
+        $deudaProveedores = DB::table('quote_details')
+            ->join('quotes', 'quote_details.quote_id', '=', 'quotes.id')
+            ->where('quotes.estado', 'finalizada')
+            ->where('quote_details.pago_proveedor_estado', 'pendiente')
+            ->value(DB::raw('ROUND(SUM(quote_details.total) * 0.90, 2)'));
+
+        /*
+        |--------------------------------------------------------------------------
+        | TOTALES GENERALES
+        |--------------------------------------------------------------------------
+        */
+
+        // Total generado = comisiones + envios
+        $totalGenerado = round($totalesGeneralesVentas['comision'] + $totalesGeneralesVentas['envios'], 2);
+
+        // Total ingresos A = Total generado - gastos
+        $totalIngresosA = round($totalGenerado - $totalGastos, 2);
+
+        // Total ingresos B = Total generado - gastos - nomina
+        $totalIngresosB = round($totalGenerado - $totalGastos - $totalNominas, 2);
+        
+        // Total disponible en caja = Total generado - gastos + Deuda a proveedores
+        $totalCaja = round(($totalGenerado - $totalGastos) + $deudaProveedores, 2);
+
+        $data = [
+            'r' => '',
+            'g' => '',
+            'b' => '',
+            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-REPORTE.jpeg'),
+            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
+
+            'totales_generales' => [
+                'total_generado' => $totalGenerado,
+                'total_ingresos_a' => $totalIngresosA,
+                'total_ingresos_b' => $totalIngresosB,
+                'total_deuda_proveedores' => $deudaProveedores,
+                'total_caja' => $totalCaja,
+            ],
+            'ventas_semanales' => [
+                'reporte' => $dataFinalVentas,
+                'totales_generales' => $totalesGeneralesVentas,
+            ],
+            'gastos' => [
+                'reporte' => $gastos,
+                'totales_generales' => round($totalGastos, 2)
+            ],
+            'nominas' => [
+                'reporte' => $nominas,
+                'totales_generales' => round($totalNominas, 2)
+            ],
+        ];
+
+        //$pdf = Pdf::loadView('cotizaciones.cotizacion', $data);
+        // Crea una instancia de Pdf y establece el tamaño de papel en hoja carta
+        $pdf = Pdf::loadView('reportes.reporteFinanciero', $data)->setPaper('letter');
+        $pdfContent = $pdf->output();
+
+        // Genera un nombre de archivo único
+        $nombreArchivo = 'pdf_' . uniqid() . '.pdf';
+
+        // Guarda el PDF en la carpeta "public" del directorio raíz
+        Storage::disk('public_root')->put('pdfs/reportes/'.$nombreArchivo, $pdf->output());
+
+        // Obtiene la URL del archivo guardado
+        $url = asset('pdfs/reportes/' . $nombreArchivo);
+
+        return response()->json([
+            'success' => true,
+            'data' => $url
+        ], 200);
+
+        // return response()->json([
+        //     'success' => true,
+        //     // 'data' => $ventas,
+        //     'totales_generales' => [
+        //         'total_generado' => $totalGenerado,
+        //         'total_ingresos_a' => $totalIngresosA,
+        //         'total_ingresos_b' => $totalIngresosB,
+        //         'total_deuda_proveedores' => $deudaProveedores,
+        //         'total_caja' => $totalCaja,
+        //     ],
+        //     'ventas_semanales' => [
+        //         'reporte' => $dataFinalVentas,
+        //         'totales_generales' => $totalesGeneralesVentas,
+        //     ],
+        //     'gastos' => [
+        //         'reporte' => $gastos,
+        //         'totales_generales' => round($totalGastos, 2)
+        //     ],
+        //     'nominas' => [
+        //         'reporte' => $nominas,
+        //         'totales_generales' => round($totalNominas, 2)
+        //     ],
+        // ], 200);
     }
 
     public function getEstadisticas(Request $request)
