@@ -363,17 +363,18 @@ class PublicationController extends Controller
             }
 
             // 5. Normalizar a exactamente 4 imágenes
-            $originalImages = $pub->images->take(4); // Esto es una colección de Eloquent
+            $originalImages = $pub->images->take(5); // Esto es una colección de Eloquent
             $count = $originalImages->count();
             $finalImages = [];
 
             if ($count > 0) {
-                for ($i = 0; $i < 4; $i++) {
+                for ($i = 0; $i < 5; $i++) {
                     $imgOriginal = $originalImages[$i % $count];
 
                     // Comprimir y convertir a base64
                     // $imgComprimida['url'] = $this->comprimirImagenParaPDF($imgOriginal->url);
-                    $url = $this->comprimirImagenParaPDF($imgOriginal->image_path);
+                    // $url = $this->comprimirImagenParaPDF($imgOriginal->image_path);
+                    $url = $this->comprimirImagenParaPDF($imgOriginal->image_path, 65, 340);
                     $finalImages[] = ['url' => $url];
                 }
             }
@@ -408,8 +409,11 @@ class PublicationController extends Controller
         }
 
         $data = [
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-CATALOGO.jpeg'),
-            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
+            // 'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-CATALOGO.jpeg'),
+            // 'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
+
+            'logo' => public_path('images/ordenPlazaVestido/logoPlazaDelVestido.png'),
+            'logo2' => public_path('images/ordenPlazaVestido/logoPlazaDelVestido2.png'),
 
             // 'data' => $processedPublications,
             'data'   => $processedPublications->toArray(),
@@ -419,7 +423,8 @@ class PublicationController extends Controller
 
         //$pdf = Pdf::loadView('cotizaciones.cotizacion', $data);
         // Crea una instancia de Pdf y establece el tamaño de papel en hoja carta
-        $pdf = Pdf::loadView('catalogos.catalogo', $data)->setPaper('letter');
+        // $pdf = Pdf::loadView('catalogos.catalogo', $data)->setPaper('letter');
+        $pdf = Pdf::loadView('catalogos.testCatalogo', $data)->setPaper('letter');
         $pdfContent = $pdf->output();
 
         // Genera un nombre de archivo único
@@ -441,7 +446,7 @@ class PublicationController extends Controller
     private function comprimirImagenParaPDF(string $imagePath, int $calidad = 30, int $maxWidth = 250): string
     {
         // Cache key basada en el path + parámetros
-        $cacheKey = 'img_pdf_' . md5($imagePath . $calidad . $maxWidth);
+        $cacheKey = 'img_pdf_v5_' . md5($imagePath . $calidad . $maxWidth);
 
         return Cache::remember($cacheKey, now()->addDays(7), function () use ($imagePath, $calidad, $maxWidth) {
             try {

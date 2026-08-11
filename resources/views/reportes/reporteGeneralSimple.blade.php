@@ -96,6 +96,7 @@
               <thead>
                 <tr style="background-color: rgba({{$r}}, {{$g}}, {{$b}}, 0.2);">
                   <th scope="col"></th>
+                  <th scope="col">Tipo</th>
                   <th scope="col">Nombre</th>
                   <th scope="col" style="text-align: center;">Tienda</th>
                   <th scope="col" style="text-align: center;">Total Compra</th>
@@ -106,6 +107,9 @@
                     <tr>
                       <td>
                         {{ $loop->iteration }}
+                      </td>
+                      <td>
+                        {{ $item['tipo'] }} 
                       </td>
                       <td style="white-space: normal; word-break: break-word;">
                         {{ $item['nombre'] }}
@@ -119,10 +123,10 @@
                     </tr>
                 @endforeach
                 <tr>
-                  <td colspan="4">&nbsp;</td>
+                  <td colspan="5">&nbsp;</td>
                 </tr>
                 <tr style="height: 25px; font-size: 14px;">
-                    <td colspan="3" style="text-align: right;"><strong>TOTAL GENERAL</strong></td>
+                    <td colspan="4" style="text-align: right;"><strong>TOTAL GENERAL</strong></td>
                     <td style="text-align: center;">
                       <strong>${{ number_format($totales_generales['compra'], 2, '.', ',') }}</strong>
                     </td>

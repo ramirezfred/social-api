@@ -11,6 +11,7 @@ use Exception;
 
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Quote;
 
 use Carbon\Carbon;
 
@@ -56,6 +57,7 @@ class SupplierController extends Controller
             'contacto' => 'nullable|string|max:255',
             'status' => 'boolean',
             'categoria' => 'nullable|string|max:255',
+            'tipo' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -142,6 +144,8 @@ class SupplierController extends Controller
             'contacto' => 'sometimes|nullable|string|max:255',
             'status' => 'sometimes|boolean',
             'categoria' => 'sometimes|nullable|string|max:255',
+            'envia_fotos' => 'sometimes|boolean',
+            'tipo' => 'sometimes|nullable|string|max:255',
         ]);
         if ($validator->fails()) { 
             // Se devuelve un array errors con los errores encontrados y cabecera HTTP 422 Unprocessable Entity – [Entidad improcesable] Utilizada para errores de validación.
@@ -160,6 +164,8 @@ class SupplierController extends Controller
         $contacto = $request->input('contacto');
         $status = $request->input('status');
         $categoria = $request->input('categoria');
+        $envia_fotos = $request->input('envia_fotos');
+        $tipo = $request->input('tipo');
 
         // Creamos una bandera para controlar si se ha modificado algún dato.
         $bandera = false;
@@ -223,6 +229,17 @@ class SupplierController extends Controller
 
         if($request->has('status')){
             $registro->status = $status;
+            $bandera=true;
+        }
+
+        if($request->has('envia_fotos')){
+            $registro->envia_fotos = $envia_fotos;
+            $bandera=true;
+        }
+
+        if ($tipo != null && $tipo != '')
+        {
+            $registro->tipo = $tipo;
             $bandera=true;
         }
 
@@ -332,6 +349,80 @@ class SupplierController extends Controller
             'success' => true,
             'data' => $generado,
         ]);
+    }
+
+    public function getContactosByTipo($tipo)
+    {
+
+        if($tipo != 'proveedor' && $tipo != 'cliente') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tipo inválido. Debe ser "proveedor" o "cliente".'
+            ], 400);
+        }
+
+        if ($tipo == 'cliente') {
+
+            $contactos = Quote::noEliminados()
+                ->where('pago_estado', 'pagado')
+                ->whereNotNull('telefono')
+                ->whereRaw('TRIM(telefono) <> ""')
+                ->select('id', 'cliente as nombre', 'telefono')
+                ->orderBy('id')
+                ->get()
+                ->unique('telefono')
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $this->normalizarContactos($contactos),
+            ]);
+        }
+
+        $contactos = Supplier::noEliminados()
+            ->where('status', true)
+            ->whereNotNull('telefono')
+            ->whereRaw('TRIM(telefono) <> ""')
+            ->select('id', 'contacto as nombre', 'telefono', 'envia_fotos')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->normalizarContactos($contactos),
+        ]);
+    
+    }
+
+    private function normalizarTelefonoWhatsapp($telefono)
+    {
+        // Dejar solo números
+        $telefono = preg_replace('/\D/', '', $telefono);
+
+        // Si tiene 10 dígitos, asumir México
+        if (strlen($telefono) === 10) {
+            return '521' . $telefono;
+        }
+
+        // Si ya tiene 52, agregar el 1
+        if (strlen($telefono) === 12 && str_starts_with($telefono, '52')) {
+            return '521' . substr($telefono, 2);
+        }
+
+        // Si ya tiene 521, dejarlo igual
+        if (strlen($telefono) === 13 && str_starts_with($telefono, '521')) {
+            return $telefono;
+        }
+
+        // Cualquier otro caso
+        return $telefono;
+    }
+
+    private function normalizarContactos($contactos)
+    {
+        return $contactos->map(function ($contacto) {
+            $contacto->telefono = $this->normalizarTelefonoWhatsapp($contacto->telefono);
+            return $contacto;
+        });
     }
 
 }

@@ -1181,6 +1181,9 @@ class PruebasController extends Controller
 
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->supplier_id);
+        }else{
+            //Test Desarrollo: Excluir proveedor específico (65) para no mostrar sus publicaciones
+            $query->where('supplier_id', '!=', 65);
         }
 
         // Filtro por fechas
@@ -1188,6 +1191,10 @@ class PruebasController extends Controller
             $start = Carbon::parse($request->fecha_inicio)->startOfDay();
             $end   = Carbon::parse($request->fecha_fin)->endOfDay();
             $query->whereBetween('created_at', [$start, $end]);
+        }
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
         }
 
         $publications = $query->with([
@@ -1221,12 +1228,12 @@ class PruebasController extends Controller
             }
 
             // 5. Normalizar a exactamente 4 imágenes
-            $originalImages = $pub->images->take(4); // Esto es una colección de Eloquent
+            $originalImages = $pub->images->take(5); // Esto es una colección de Eloquent
             $count = $originalImages->count();
             $finalImages = [];
 
             if ($count > 0) {
-                for ($i = 0; $i < 4; $i++) {
+                for ($i = 0; $i < 5; $i++) {
                     $imgOriginal = $originalImages[$i % $count];
 
                     // Comprimir y convertir a base64
@@ -1248,8 +1255,12 @@ class PruebasController extends Controller
                     'precio' => (int)$precio
                 ]
             ];
-        })->filter()->values(); // filter() elimina los elementos null (los que no cumplieron el formato)
-        // .values() resetea los índices del array
+        })->filter() // filter() elimina los elementos null (los que no cumplieron el formato)
+        ->unique(function ($item) {
+            return strtolower(trim($item['extraido']['producto']));
+        })
+        ->values(); // .values() resetea los índices del array
+        
 
         // Validación de resultados
         if ($processedPublications->isEmpty()) {
@@ -1262,14 +1273,17 @@ class PruebasController extends Controller
         }
 
         $data = [
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-CATALOGO.jpeg'),
-            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
+            // 'logo' => public_path('images/ordenPlazaVestido/logoPlazaDelVestido.png'),
+            // 'logo' => 'https://apisocial.internow.com.mx/images/ordenPlazaVestido/logoPlazaDelVestido.png',
+            // 'logo2' => 'https://apisocial.internow.com.mx/images/ordenPlazaVestido/logoPlazaDelVestido2.png',
+            'logo' => public_path('images/ordenPlazaVestido/logoPlazaDelVestido.png'),
+            'logo2' => public_path('images/ordenPlazaVestido/logoPlazaDelVestido2.png'),
 
             // 'data' => $processedPublications,
             'data'   => $processedPublications->toArray(),
         ];
 
-        // return view('catalogos.catalogo', $data);
+        // return view('catalogos.testCatalogo', $data);
 
         //$pdf = Pdf::loadView('cotizaciones.cotizacion', $data);
         // Crea una instancia de Pdf y establece el tamaño de papel en hoja carta
@@ -1292,10 +1306,10 @@ class PruebasController extends Controller
         ], 200);
     }
 
-    private function comprimirImagenParaPDF(string $imagePath, int $calidad = 30, int $maxWidth = 250): string
+    private function comprimirImagenParaPDF(string $imagePath, int $calidad = 65, int $maxWidth = 340): string
     {
         // Cache key basada en el path + parámetros
-        $cacheKey = 'img_pdf_' . md5($imagePath . $calidad . $maxWidth);
+        $cacheKey = 'img_pdf_v5_' . md5($imagePath . $calidad . $maxWidth);
 
         return Cache::remember($cacheKey, now()->addDays(7), function () use ($imagePath, $calidad, $maxWidth) {
             try {
@@ -1331,498 +1345,6 @@ class PruebasController extends Controller
         });
     }
 
-    public function reporteSemanal(Request $request)
-    {
-        $comisionPorcentaje = 0.10; // 10% variable
-
-        $query = Quote::select('id', 'estado', 'pago_estado', 'tipo_entrega', 'created_at')
-            ->where('estado', 'finalizada')
-            ->where('pago_estado', 'pagado');
-
-        if ($request->filled(['fecha_inicio', 'fecha_fin'])) {
-            $start = Carbon::parse($request->fecha_inicio)->startOfDay();
-            $end   = Carbon::parse($request->fecha_fin)->endOfDay();
-            $query->whereBetween('created_at', [$start, $end]);
-        }
-
-        $quotes = $query->with(['detalles.supplier'])->get();
-
-        // Validación de resultados
-        if ($quotes->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No hay ventas disponibles en el rango de fechas seleccionado.',
-                'data' => []
-            ], 404);
-        }
-
-        // 1. Aplanamos y agrupamos por Supplier
-        $reporte = [];
-        
-        foreach ($quotes as $quote) {
-            foreach ($quote->detalles as $detalle) {
-                $supplier = $detalle->supplier;
-                $supplierId = $supplier->id;
-
-                if (!isset($reporte[$supplierId])) {
-                    $reporte[$supplierId] = [
-                        'nombre' => $supplier->contacto,
-                        'tienda' => $supplier->razon_social,
-                        'total_compra' => 0,
-                    ];
-                }
-                // Sumamos el total del detalle al proveedor correspondiente
-                $reporte[$supplierId]['total_compra'] += (float)$detalle->total;
-            }
-        }
-
-        // 2. Calculamos comisiones y totales por fila
-        $dataFinal = [];
-        $totalesGenerales = [
-            'compra' => 0,
-            'comision' => 0,
-            'entregar' => 0
-        ];
-
-        foreach ($reporte as $item) {
-            $descuentoComision = $item['total_compra'] * $comisionPorcentaje;
-            $totalEntregar = $item['total_compra'] - $descuentoComision;
-
-            $fila = [
-                'nombre' => $item['nombre'],
-                'tienda' => $item['tienda'],
-                'total_compra' => round($item['total_compra'], 2),
-                'comision_percent' => ($comisionPorcentaje * 100),
-                'descuento_comision' => round($descuentoComision, 2),
-                'total_entregar' => round($totalEntregar, 2),
-            ];
-
-            $dataFinal[] = $fila;
-
-            // Acumulamos para el pie de tabla
-            $totalesGenerales['compra'] += $fila['total_compra'];
-            $totalesGenerales['comision'] += $fila['descuento_comision'];
-            $totalesGenerales['entregar'] += $fila['total_entregar'];
-        }
-
-        $totalesGenerales['compra'] = round($totalesGenerales['compra'], 2);
-        $totalesGenerales['comision'] = round($totalesGenerales['comision'], 2);
-        $totalesGenerales['entregar'] = round($totalesGenerales['entregar'], 2);
-
-        // $rgb = UtilitiesService::hexToRgb('#4285cb');
-
-        $data = [
-            'r' => '',
-            'g' => '',
-            'b' => '',
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-REPORTE.jpeg'),
-            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
-
-            'desde' => $request->input('fecha_inicio'),
-            'hasta' => $request->input('fecha_fin'),
-
-            'reporte' => $dataFinal,
-            'totales_generales' => $totalesGenerales
-        ];
-
-        //$pdf = Pdf::loadView('cotizaciones.cotizacion', $data);
-        // Crea una instancia de Pdf y establece el tamaño de papel en hoja carta
-        $pdf = Pdf::loadView('reportes.reporteSemanal', $data)->setPaper('letter');
-        $pdfContent = $pdf->output();
-
-        // Genera un nombre de archivo único
-        $nombreArchivo = 'pdf_' . uniqid() . '.pdf';
-
-        // Guarda el PDF en la carpeta "public" del directorio raíz
-        Storage::disk('public_root')->put('pdfs/reportes/'.$nombreArchivo, $pdf->output());
-
-        // Obtiene la URL del archivo guardado
-        $url = asset('pdfs/reportes/' . $nombreArchivo);
-
-        return response()->json([
-            'success' => true,
-            'data' => $url
-        ], 200);
-    }
-
-    public function reporteGeneral(Request $request)
-    {
-        $comisionPorcentaje = 0.10; // 10% variable
-
-        // Asegúrate de incluir 'created_at' en el select
-        $query = Quote::select('id', 'folio', 'estado', 'pago_estado', 'tipo_entrega', 'created_at')
-            ->where('estado', 'finalizada')
-            ->where('pago_estado', 'pagado');
-
-        if ($request->filled(['fecha_inicio', 'fecha_fin'])) {
-            $start = Carbon::parse($request->fecha_inicio)->startOfDay();
-            $end   = Carbon::parse($request->fecha_fin)->endOfDay();
-            $query->whereBetween('created_at', [$start, $end]);
-        }
-
-        $quotes = $query->with(['detalles.supplier'])->get();
-
-        if ($quotes->isEmpty()) {
-            return response()->json(['success' => false, 'message' => 'No hay ventas disponibles en el rango de fechas seleccionado.'], 404);
-        }
-
-        $reporte = [];
-        
-        foreach ($quotes as $quote) {
-            foreach ($quote->detalles as $detalle) {
-                $supplier = $detalle->supplier;
-                if (!$supplier) continue;
-
-                $supplierId = $supplier->id;
-                $folio = $quote->folio;
-                $key = $supplierId . '_' . $folio;
-
-                if (!isset($reporte[$key])) {
-                    $reporte[$key] = [
-                        'nombre'       => $supplier->contacto,
-                        'tienda'       => $supplier->razon_social,
-                        'folio'        => $folio,
-                        'tipo_entrega' => $quote->tipo_entrega,
-                        'fecha'        => $quote->created_at, // Guardamos el objeto Carbon
-                        'total_compra' => 0,
-                    ];
-                }
-                $reporte[$key]['total_compra'] += (float)$detalle->total;
-            }
-        }
-
-        $dataFinal = [];
-        $totalesGenerales = ['compra' => 0, 'comision' => 0, 'entregar' => 0];
-
-        foreach ($reporte as $item) {
-            $descuentoComision = $item['total_compra'] * $comisionPorcentaje;
-            $totalEntregar = $item['total_compra'] - $descuentoComision;
-
-            $fila = [
-                'nombre'             => $item['nombre'],
-                'tienda'             => $item['tienda'],
-                'folio'              => $item['folio'],
-                'tipo_entrega'       => $item['tipo_entrega'],
-                // Formateamos la fecha aquí para que Blade la reciba lista
-                'fecha'              => $item['fecha']->format('d-m-Y'), 
-                'total_compra'       => round($item['total_compra'], 2),
-                'comision_percent'   => ($comisionPorcentaje * 100),
-                'descuento_comision' => round($descuentoComision, 2),
-                'total_entregar'     => round($totalEntregar, 2),
-            ];
-
-            $dataFinal[] = $fila;
-
-            $totalesGenerales['compra']   += $fila['total_compra'];
-            $totalesGenerales['comision'] += $fila['descuento_comision'];
-            $totalesGenerales['entregar'] += $fila['total_entregar'];
-        }
-
-        $totalesGenerales = array_map(fn($v) => round($v, 2), $totalesGenerales);
-
-        $data = [
-            'r' => '', 'g' => '', 'b' => '',
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-REPORTE.jpeg'),
-            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
-            'desde'  => $request->input('fecha_inicio'),
-            'hasta'  => $request->input('fecha_fin'),
-            'reporte' => $dataFinal,
-            'totales_generales' => $totalesGenerales
-        ];
-
-        $pdf = Pdf::loadView('reportes.reporteGeneral', $data)->setPaper('letter');
-        $nombreArchivo = 'pdf_' . uniqid() . '.pdf';
-        Storage::disk('public_root')->put('pdfs/reportes/'.$nombreArchivo, $pdf->output());
-
-        // Obtiene la URL del archivo guardado
-        $url = asset('pdfs/reportes/' . $nombreArchivo);
-
-        return response()->json([
-            'success' => true,
-            'data' => $url
-        ], 200);
-    }
-
-    public function reporteGeneralSimple(Request $request)
-    {
-        $comisionPorcentaje = 0.10; // 10% variable
-
-        // Asegúrate de incluir 'created_at' en el select
-        $query = Quote::select('id', 'folio', 'estado', 'pago_estado', 'tipo_entrega', 'created_at')
-            ->where('estado', 'finalizada')
-            ->where('pago_estado', 'pagado');
-
-        if ($request->filled(['fecha_inicio', 'fecha_fin'])) {
-            $start = Carbon::parse($request->fecha_inicio)->startOfDay();
-            $end   = Carbon::parse($request->fecha_fin)->endOfDay();
-            $query->whereBetween('created_at', [$start, $end]);
-        }
-
-        $quotes = $query->with(['detalles.supplier'])->get();
-
-        if ($quotes->isEmpty()) {
-            return response()->json(['success' => false, 'message' => 'No hay ventas disponibles en el rango de fechas seleccionado.'], 404);
-        }
-
-        $reporte = [];
-        
-        foreach ($quotes as $quote) {
-            foreach ($quote->detalles as $detalle) {
-                $supplier = $detalle->supplier;
-                if (!$supplier) continue;
-
-                $supplierId = $supplier->id;
-                $folio = $quote->folio;
-                $key = $supplierId . '_' . $folio;
-
-                if (!isset($reporte[$key])) {
-                    $reporte[$key] = [
-                        'nombre'       => $supplier->contacto,
-                        'tienda'       => $supplier->razon_social,
-                        'folio'        => $folio,
-                        'tipo_entrega' => $quote->tipo_entrega,
-                        'fecha'        => $quote->created_at, // Guardamos el objeto Carbon
-                        'total_compra' => 0,
-                    ];
-                }
-                $reporte[$key]['total_compra'] += (float)$detalle->total;
-            }
-        }
-
-        $dataFinal = [];
-        $totalesGenerales = ['compra' => 0];
-
-        foreach ($reporte as $item) {
-
-            $fila = [
-                'nombre'             => $item['nombre'],
-                'tienda'             => $item['tienda'],
-                'folio'              => $item['folio'],
-                'tipo_entrega'       => $item['tipo_entrega'],
-                // Formateamos la fecha aquí para que Blade la reciba lista
-                'fecha'              => $item['fecha']->format('d-m-Y'), 
-                'total_compra'       => round($item['total_compra'], 2),
-            ];
-
-            $dataFinal[] = $fila;
-
-            $totalesGenerales['compra']   += $fila['total_compra'];
-        }
-
-        $totalesGenerales = array_map(fn($v) => round($v, 2), $totalesGenerales);
-
-        $data = [
-            'r' => '', 'g' => '', 'b' => '',
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-REPORTE.jpeg'),
-            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
-            'desde'  => $request->input('fecha_inicio'),
-            'hasta'  => $request->input('fecha_fin'),
-            'reporte' => $dataFinal,
-            'totales_generales' => $totalesGenerales
-        ];
-
-        $pdf = Pdf::loadView('reportes.reporteGeneralSimple', $data)->setPaper('letter');
-        $nombreArchivo = 'pdf_' . uniqid() . '.pdf';
-        Storage::disk('public_root')->put('pdfs/reportes/'.$nombreArchivo, $pdf->output());
-
-        // Obtiene la URL del archivo guardado
-        $url = asset('pdfs/reportes/' . $nombreArchivo);
-
-        return response()->json([
-            'success' => true,
-            'data' => $url
-        ], 200);
-    }
-
-    public function reporteIngresosEgresos()
-    {
-
-        /*
-        |--------------------------------------------------------------------------
-        | VENTAS SEMANALES
-        |--------------------------------------------------------------------------
-        */
-
-        $comisionPorcentaje = 0.10; // 10% variable
-
-        $ventas = Quote::noEliminados()
-            ->whereIn('estado', ['en curso', 'finalizada'])
-            ->whereIn('pago_estado', ['pagado'])
-            ->selectRaw("
-                DATE_SUB(
-                    DATE(created_at),
-                    INTERVAL ((DAYOFWEEK(created_at) + 1) % 7) DAY
-                ) AS viernes_inicio,
-
-                COUNT(*) AS cantidad,
-                COALESCE(SUM(subtotal), 0) AS total_semanal,
-                COALESCE(SUM(envio), 0) AS costo_envios
-            ")
-            ->groupBy('viernes_inicio')
-            ->get();
-
-        $dataFinalVentas = [];
-        $totalesGeneralesVentas = [
-            'cantidad' => 0,
-            'total' => 0,
-            'comision' => 0,
-            'envios' => 0
-        ];
-
-        foreach ($ventas as $item) {
-            $descuentoComision = $item['total_semanal'] * $comisionPorcentaje;
-            // $totalEntregar = $item['total_semanal'] - $descuentoComision;
-
-            $viernes = Carbon::parse($item['viernes_inicio'])->startOfDay();
-            $jueves  = $viernes->copy()->addDays(6)->endOfDay();
-
-            $fila = [
-                'fecha_inicio' => $viernes->toDateTimeString(),
-                'fecha_fin'    => $jueves->toDateTimeString(),
-                'cantidad' => (int) $item['cantidad'],
-                'total_semanal' => round($item['total_semanal'], 2),
-                'comision_percent' => ($comisionPorcentaje * 100),
-                'descuento_comision' => round($descuentoComision, 2),
-                'costo_envios' => round($item['costo_envios'], 2),
-            ];
-
-            $dataFinalVentas[] = $fila;
-
-            // Acumulamos para el pie de tabla
-            $totalesGeneralesVentas['cantidad'] += $fila['cantidad'];
-            $totalesGeneralesVentas['total'] += $fila['total_semanal'];
-            $totalesGeneralesVentas['comision'] += $fila['descuento_comision'];
-            $totalesGeneralesVentas['envios'] += $fila['costo_envios'];
-        }
-
-        $totalesGeneralesVentas = array_map(fn($v) => round($v, 2), $totalesGeneralesVentas);
-
-        /*
-        |--------------------------------------------------------------------------
-        | GASTOS
-        |--------------------------------------------------------------------------
-        */
-
-        $gastos = Expense::noEliminados()
-            ->select('id','fecha','monto','concepto')
-            ->orderBy('fecha', 'ASC')
-            ->get();
-
-        $totalGastos = $gastos->sum('monto');
-
-        /*
-        |--------------------------------------------------------------------------
-        | NOMINA
-        |--------------------------------------------------------------------------
-        */
-
-        $nominas = Payroll::noEliminados()
-            ->select('id','fecha','monto','concepto')
-            ->orderBy('fecha', 'ASC')
-            ->get();
-
-        $totalNominas = $nominas->sum('monto');
-
-        /*
-        |--------------------------------------------------------------------------
-        | ADEUDO A PROVEEDORES
-        |--------------------------------------------------------------------------
-        */
-
-        $deudaProveedores = DB::table('quote_details')
-            ->join('quotes', 'quote_details.quote_id', '=', 'quotes.id')
-            ->where('quotes.estado', 'finalizada')
-            ->where('quote_details.pago_proveedor_estado', 'pendiente')
-            ->value(DB::raw('ROUND(SUM(quote_details.total) * 0.90, 2)'));
-
-        /*
-        |--------------------------------------------------------------------------
-        | TOTALES GENERALES
-        |--------------------------------------------------------------------------
-        */
-
-        // Total generado = comisiones + envios
-        $totalGenerado = round($totalesGeneralesVentas['comision'] + $totalesGeneralesVentas['envios'], 2);
-
-        // Total ingresos A = Total generado - gastos
-        $totalIngresosA = round($totalGenerado - $totalGastos, 2);
-
-        // Total ingresos B = Total generado - gastos - nomina
-        $totalIngresosB = round($totalGenerado - $totalGastos - $totalNominas, 2);
-        
-        // Total disponible en caja = Total generado - gastos + Deuda a proveedores
-        $totalCaja = round(($totalGenerado - $totalGastos) + $deudaProveedores, 2);
-
-        $data = [
-            'r' => '',
-            'g' => '',
-            'b' => '',
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-REPORTE.jpeg'),
-            'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
-
-            'totales_generales' => [
-                'total_generado' => $totalGenerado,
-                'total_ingresos_a' => $totalIngresosA,
-                'total_ingresos_b' => $totalIngresosB,
-                'total_deuda_proveedores' => $deudaProveedores,
-                'total_caja' => $totalCaja,
-            ],
-            'ventas_semanales' => [
-                'reporte' => $dataFinalVentas,
-                'totales_generales' => $totalesGeneralesVentas,
-            ],
-            'gastos' => [
-                'reporte' => $gastos,
-                'totales_generales' => round($totalGastos, 2)
-            ],
-            'nominas' => [
-                'reporte' => $nominas,
-                'totales_generales' => round($totalNominas, 2)
-            ],
-        ];
-
-        //$pdf = Pdf::loadView('cotizaciones.cotizacion', $data);
-        // Crea una instancia de Pdf y establece el tamaño de papel en hoja carta
-        $pdf = Pdf::loadView('reportes.reporteFinanciero', $data)->setPaper('letter');
-        $pdfContent = $pdf->output();
-
-        // Genera un nombre de archivo único
-        $nombreArchivo = 'pdf_' . uniqid() . '.pdf';
-
-        // Guarda el PDF en la carpeta "public" del directorio raíz
-        Storage::disk('public_root')->put('pdfs/reportes/'.$nombreArchivo, $pdf->output());
-
-        // Obtiene la URL del archivo guardado
-        $url = asset('pdfs/reportes/' . $nombreArchivo);
-
-        return response()->json([
-            'success' => true,
-            'data' => $url
-        ], 200);
-
-        // return response()->json([
-        //     'success' => true,
-        //     // 'data' => $ventas,
-        //     'totales_generales' => [
-        //         'total_generado' => $totalGenerado,
-        //         'total_ingresos_a' => $totalIngresosA,
-        //         'total_ingresos_b' => $totalIngresosB,
-        //         'total_deuda_proveedores' => $deudaProveedores,
-        //         'total_caja' => $totalCaja,
-        //     ],
-        //     'ventas_semanales' => [
-        //         'reporte' => $dataFinalVentas,
-        //         'totales_generales' => $totalesGeneralesVentas,
-        //     ],
-        //     'gastos' => [
-        //         'reporte' => $gastos,
-        //         'totales_generales' => round($totalGastos, 2)
-        //     ],
-        //     'nominas' => [
-        //         'reporte' => $nominas,
-        //         'totales_generales' => round($totalNominas, 2)
-        //     ],
-        // ], 200);
-    }
+   
 
 }

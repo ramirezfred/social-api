@@ -10,6 +10,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\CashCloseController;
+use App\Http\Controllers\PublicationLinkController;
 
 use App\Http\Controllers\PruebasController;
 
@@ -58,20 +59,19 @@ Route::group(['middleware' => ['jwt.verify']], function() {
     // PROVEEDORES
     // ============================================
     Route::prefix('suppliers')->group(function () {
-        // Listar proveedores
+        // 1. RUTAS ESTÁTICAS (Sin parámetros)
         Route::get('/', [SupplierController::class, 'index']);
-        
-        // Crear nuevo proveedor
         Route::post('/', [SupplierController::class, 'store']);
+
+        // 2. RUTAS CON PARÁMETROS (MÁS ESPECÍFICAS PRIMERO)
+        Route::get('/contactos/{tipo}', [SupplierController::class, 'getContactosByTipo']);
+        Route::get('/{id}/generado-por-semana', [SupplierController::class, 'getGeneradoPorSemana']);
         
-        // Actualizar proveedor
+        // 3. RUTAS CATCH-ALL CON {id} (SIEMPRE AL FINAL)
         Route::put('/{id}', [SupplierController::class, 'update']);
-        
-        // Eliminar proveedor
         Route::delete('/{id}', [SupplierController::class, 'destroy']);
 
-        // Consultar el lo generado por rango de fecha
-        Route::get('/{id}/generado-por-semana', [SupplierController::class, 'getGeneradoPorSemana']);
+        
     });
 
     // ============================================
@@ -221,3 +221,22 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         // ticket de corte de caja
         Route::get('/{id}/ticket', [CashCloseController::class, 'ticket']);
     });
+
+    // ============================================
+    // LINKS PARA PUBLICACIONES
+    // ============================================
+    Route::middleware('jwt.verify')->prefix('publication-links')->group(function () {
+
+        Route::get('/', [PublicationLinkController::class, 'index']);
+        Route::post('/', [PublicationLinkController::class, 'store']);
+        Route::put('/{id}', [PublicationLinkController::class, 'update']);
+        Route::delete('/{id}', [PublicationLinkController::class, 'destroy']);
+        Route::get('/{id}/url', [PublicationLinkController::class, 'getUrl']);
+        
+    });
+
+    // Pública
+    Route::get(
+        '/publication-links/validate/{token}',
+        [PublicationLinkController::class, 'validateToken']
+    );

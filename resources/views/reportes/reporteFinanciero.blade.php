@@ -228,6 +228,56 @@
 
             <br>
             <br>
+            
+
+            <div style="text-align: center; font-size: 14px;"> 
+              <strong>Adeudo a Proveedores</strong>    
+            </div>
+
+            <table class="table table-sm" style="width: 100%;">
+              <thead>
+                <tr style="background-color: rgba({{$r}}, {{$g}}, {{$b}}, 0.2);">
+                  <th scope="col"></th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Proveedor</th>
+                  <th scope="col" style="text-align: center;">Total Vendido</th>
+                  <th scope="col" style="text-align: right;">Total Neto Pendiente (-10%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach ($deuda_proveedores['reporte'] as $item)
+                    <tr>
+                      <td>
+                        {{ $loop->iteration }}
+                      </td>
+                      <td>
+                        {{ $item->tipo }}
+                      </td>
+                      <td style="white-space: normal; word-break: break-word;">
+                        {{ $item->razon_social }}
+                      </td>
+                      <td style="text-align: center;">
+                        ${{ number_format($item->total_vendido, 2, '.', ',') }}
+                      </td>
+                      <td style="text-align: right; margin-right: 8px;">
+                        ${{ number_format($item->total_deuda, 2, '.', ',') }}
+                      </td>
+                    </tr>
+                @endforeach
+                <tr>
+                  <td colspan="5">&nbsp;</td>
+                </tr>
+                <tr style="height: 25px; font-size: 14px;">
+                    <td colspan="4" style="text-align: right;"><strong>TOTAL GENERAL</strong></td>
+                    <td style="text-align: right; margin-right: 8px;">
+                      <strong>${{ number_format($deuda_proveedores['totales_generales'], 2, '.', ',') }}</strong>
+                    </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <br>
+            <br>
 
             <div style="text-align: center; font-size: 14px;"> 
               <strong>Resumen</strong>    
@@ -241,17 +291,17 @@
                   </td>
               </tr>
               <tr>
-                  <td><strong>Total Ingresos A</strong> (Total Generado - Gastos)</td>
+                  <td><strong>Total Ingresos</strong> (Total Generado - Gastos)</td>
                   <td style="text-align: right; margin-right: 8px;">
                     <strong>${{ number_format($totales_generales['total_ingresos_a'], 2, '.', ',') }}</strong>
                   </td>
               </tr>
-              <tr>
+              <!-- <tr>
                   <td><strong>Total Ingresos B</strong> (Total Generado - Gastos - Nómina)</td>
                   <td style="text-align: right; margin-right: 8px;">
                     <strong>${{ number_format($totales_generales['total_ingresos_b'], 2, '.', ',') }}</strong>
                   </td>
-              </tr>
+              </tr> -->
               <tr>
                   <td><strong>Adeudo a Proveedores</strong></td>
                   <td style="text-align: right; margin-right: 8px;">
@@ -260,13 +310,13 @@
               </tr>
               <tr style="font-size: 14px;">
                   <td>
-                    <strong>Total Disponible en Caja</strong> (Total Generado - Gastos + Adeudo a proveedores)
+                    <strong>Total Disponible en Caja</strong> (Total Generado - Gastos - Nómina)
                   </td>
                   <td style="text-align: right; margin-right: 8px;">
                     <strong>${{ number_format($totales_generales['total_caja'], 2, '.', ',') }}</strong>
                   </td>
               </tr>
-          </table>
+            </table>
 
             
           </div>

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <title>Catálogo</title>
     <style>
-      @page { margin: 0; }
+      @page { margin: 0; size: A4; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
 
       body {
           font-family: Arial, sans-serif;
@@ -12,148 +13,218 @@
           color: #2c2c2c;
       }
 
-      .top-image {
-          position: fixed;
-          top: 0; left: 0;
-          width: 100%;
-      }
+      .page-break { page-break-after: always; }
 
-      .bottom-image {
-          position: fixed;
-          bottom: 0; left: 0;
-          width: 100%;
+      /* ── Badges ── */
+      .badge {
+          display: inline-block;
+          border: 1.5px solid #555;
+          color: #2c2c2c;
+          border-radius: 20px;
+          padding: 2px 10px;
+          font-size: 13px;
+          margin: 2px 3px 2px 0;
       }
-
-      .page {
-          padding: 120px 20px 60px 20px;
-      }
-
-      .page-break {
-          page-break-after: always;
+      .badge-dark {
+          border-color: #fff;
+          color: #fff;
       }
 
       .seccion-label {
-          font-size: 9px;
+          font-size: 26px;
           font-weight: bold;
-          color: #999;
-          text-transform: uppercase;
-          letter-spacing: 0.6px;
-          margin-bottom: 3px;
-      }
-
-      .talla-badge {
-          display: inline-block;
-          background: #e8f0fb;
-          border: 1px solid #1a4fa0;
-          color: #0d3278;
-          border-radius: 3px;
-          padding: 2px 6px;
-          font-size: 10px;
-          font-weight: bold;
-          margin: 1px 1px 1px 0;
-      }
-
-      .color-badge {
-          display: inline-block;
-          background: #2c2c2c;
-          color: #fff;
-          border-radius: 10px;
-          padding: 2px 7px;
-          font-size: 9px;
-          margin: 1px 1px 1px 0;
-      }
-
-      .precio-box {
-          display: inline-block;
-          background: #1a4fa0;
-          color: #fff;
-          padding: 3px 10px;
-          border-radius: 3px;
-          font-size: 16px;
-          font-weight: bold;
+          margin-bottom: 5px;
       }
     </style>
 </head>
 <body>
 
-    <img src="{{ $header }}" class="top-image">
-    <img src="{{ $footer }}" class="bottom-image">
+{{-- ══════════════ PORTADA ══════════════ --}}
+{{-- Usamos una tabla de 2 filas para simular el fondo dividido --}}
+<table width="100%" cellpadding="0" cellspacing="0" class="page-break"
+       style="width: 210mm; height: 297mm;">
 
-    @php $pages = collect($data)->chunk(2); @endphp
+    {{-- Mitad superior: blanco --}}
+    <tr>
+        <td height="148mm" bgcolor="#ffffff" align="center" valign="middle"
+            style="padding: 40px 40px 20px 40px;">
+            <img src="{{ $logo }}" style="width: 460px; height: 460px;">
+        </td>
+    </tr>
 
-    @foreach($pages as $page)
-    <div class="page {{ !$loop->last ? 'page-break' : '' }}">
+    {{-- Mitad inferior: azul claro --}}
+    <tr>
+        <td bgcolor="#5bc8d8" valign="top"
+            style="padding: 0 40px 30px 40px;">
 
-        @foreach($page as $item)
-        <table width="100%" style="margin-bottom: 20px; border-bottom: 1px solid #ccc;">
+            {{-- Sub-tabla: empresa | bloque título --}}
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 120px;">
+                <tr>
+                    <td width="140" valign="top" style="padding-top: 10px;">
+                        <span style="font-size: 16px; font-weight: bold; color: #1a4fa0;
+                                     line-height: 1.8;">
+                            PLAZA DEL<br>VESTIDO DE<br>TULANCINGO S.C
+                        </span>
+                    </td>
+                    <td valign="top">
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td bgcolor="#1a4fa0"
+                                    style="padding: 50px 20px; text-align: center;
+                                           font-size: 36px; font-weight: 900;
+                                           color: #fff; line-height: 1.3;">
+                                    CATÁLOGO<br>VENTA<br>EN LÍNEA
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
 
-            {{-- ENCABEZADO --}}
+            {{-- Logo pequeño --}}
+            <img src="{{ $logo }}" style="width: 70px; margin-top: 56px;">
+        </td>
+    </tr>
+</table>
+
+{{-- ══════════════ PÁGINAS DE PRODUCTO ══════════════ --}}
+@foreach($data as $index => $item)
+@php
+    $isLight = ($index % 2 === 0);
+    $bg      = $isLight ? '#b8d4e8' : '#1a4fa0';
+    $textCol = $isLight ? '#1a1a1a' : '#ffffff';
+    $divCol  = $isLight ? '#1a4fa0' : '#ffffff';
+    $badgeClass = $isLight ? 'badge' : 'badge badge-dark';
+    $isLast  = ($index === count($data) - 1);
+
+    $imgs = $item['images'] ?? [];
+    $img0 = $imgs[0]['url'] ?? '';
+    $img1 = $imgs[1]['url'] ?? '';
+    $img2 = $imgs[2]['url'] ?? '';
+    $img3 = $imgs[3]['url'] ?? '';
+    $img4 = $imgs[4]['url'] ?? '';
+
+    $razonSocial = $item['supplier']['razon_social'] ?? '';
+    $fontSize = (mb_strlen($razonSocial) > 25) ? '32px' : '46px';
+@endphp
+
+<table width="100%" cellpadding="0" cellspacing="0"
+       style="width: 210mm; height: 297mm; background: {{ $bg }};"
+       class="{{ !$isLast ? 'page-break' : '' }}">
+<tr>
+    <td valign="top" style="padding: 30px 26px 18px 26px;">
+
+        {{-- Encabezado --}}
+        <div style="text-align: center; margin-bottom: 30px;">
+            <span style="font-size: {{ $fontSize }}; font-weight: bold; font-style: italic;
+                         color: {{ $isLight ? '#1a4fa0' : '#fff' }};">
+                {{ $item['supplier']['razon_social'] }}
+            </span><br>
+            <span style="font-size: 26px; font-weight: bold; text-decoration: underline;
+                         color: {{ $textCol }};">
+                {{ $item['extraido']['producto'] }}
+            </span>
+        </div>
+
+        {{-- Galería --}}
+        <table width="100%" cellpadding="4" cellspacing="0"
+               style="margin-bottom: 20px; table-layout: fixed; height: 650px;">
             <tr>
-                <td colspan="2" style="padding-left: 50px; padding-bottom: 1px;">
-                    <span style="font-size: 18px; font-weight: bold; color: #1a4fa0; text-transform: uppercase; letter-spacing: 0.7px;">
-                        {{ $item['supplier']['razon_social'] }}
-                    </span>
+                {{-- Imagen principal --}}
+                <td width="42%" valign="top" rowspan="2" style="padding-right: 6px;">
+                    @if($img0)
+                        <img src="{{ $img0 }}"
+                             style="width: 100%; height: 475px;
+                                    object-fit: cover; border-radius: 6px; display: block; margin-top: 90px;">
+                    @endif
                 </td>
-            </tr>
-            <tr>
-                <td colspan="2" style="padding-left: 50px; padding-bottom: 6px; border-left: 3px solid #1a4fa0;">
-                    <span style="font-size: 10px; font-weight: bold; color: #1a1a1a;">
-                        {{ $item['extraido']['producto'] }}
-                    </span>
+                {{-- Fila 1 del grid --}}
+                <td width="29%" valign="top" style="padding-bottom: 4px;">
+                    @if($img1)
+                        <img src="{{ $img1 }}"
+                             style="width: 90%; height: 260px;
+                                    object-fit: cover; border-radius: 5px; display: block;">
+                    @endif
                 </td>
-            </tr>
-
-            {{-- CONTENIDO PRINCIPAL --}}
-            <tr>
-                {{-- DETALLE --}}
-                <td style="width: 60%; vertical-align: top; padding-left: 50px;">
-
-                    <div class="precio-box" style="margin-bottom: 8px;">${{ $item['extraido']['precio'] }}</div>
-
-                    <div class="seccion-label">Tallas</div>
-                    @foreach($item['extraido']['tallas'] as $talla)
-                        <span class="talla-badge">{{ $talla }}</span>
-                    @endforeach
-
-                    <br><br>
-
-                    <div class="seccion-label">Colores</div>
-                    @foreach($item['extraido']['colores'] as $color)
-                        <span class="color-badge">{{ $color }}</span>
-                    @endforeach
-
-                </td>
-
-                {{-- IMAGEN PRINCIPAL --}}
-                <td style="width: 40%;">
-                    @if(!empty($item['images'][0]['url']))
-                        <img src="{{ $item['images'][0]['url'] }}" style="width: 68%; max-height: 220px; border-radius: 5px; object-fit: cover;">
+                <td width="29%" valign="top" style="padding-bottom: 4px;">
+                    @if($img2)
+                        <img src="{{ $img2 }}"
+                             style="width: 90%; height: 260px;
+                                    object-fit: cover; border-radius: 5px; display: block;">
                     @endif
                 </td>
             </tr>
-
-            {{-- GALERÍA --}}
             <tr>
-                <td colspan="2">
-                    <table width="100%">
-                        <tr>
-                            @foreach(collect($item['images'])->slice(1, 3) as $img)
-                            <td style="width: 33%; padding: 3px; text-align: center;">
-                                @if(!empty($img['url']))
-                                    <img src="{{ $img['url'] }}" style="width: 40%; height: 120px; border-radius: 5px; object-fit: cover;">
-                                @endif
-                            </td>
-                            @endforeach
-                        </tr>
-                    </table>
+                {{-- Fila 2 del grid --}}
+                <td width="29%" valign="top">
+                    @if($img3)
+                        <img src="{{ $img3 }}"
+                             style="width: 90%; height: 260px;
+                                    object-fit: cover; border-radius: 5px; display: block; margin-top: 90px;">
+                    @endif
+                </td>
+                <td width="29%" valign="top">
+                    @if($img4)
+                        <img src="{{ $img4 }}"
+                             style="width: 90%; height: 260px;
+                                    object-fit: cover; border-radius: 5px; display: block; margin-top: 90px;">
+                    @endif
                 </td>
             </tr>
-
         </table>
-        @endforeach
 
-    </div>
-    @endforeach
+        {{-- Separador --}}
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+            <tr>
+                <td style="border-top: 6px solid {{ $divCol }}; font-size: 0;">&nbsp;</td>
+            </tr>
+        </table>
+
+        {{-- Tallas / Colores + Precio --}}
+        <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+                {{-- Izquierda --}}
+                <td width="60%" valign="top">
+                    <div class="seccion-label" style="color: {{ $textCol }};">Tallas</div>
+                    @foreach($item['extraido']['tallas'] as $talla)
+                        <span class="{{ $badgeClass }}" style="font-weight: bold;">{{ $talla }}</span>
+                    @endforeach
+
+                    <br style="line-height: 18px;"><br>
+
+                    <div class="seccion-label" style="color: {{ $textCol }};">
+                        Colores Disponibles
+                    </div>
+                    @foreach($item['extraido']['colores'] as $color)
+                        <span class="{{ $badgeClass }}" style="font-weight: bold;">{{ $color }}</span>
+                    @endforeach
+                </td>
+
+                {{-- Derecha: precio + logo --}}
+                <td width="40%" valign="middle" align="right"
+                    style="padding-left: 10px;">
+                    <span style="font-size: 26px; font-weight: bold; letter-spacing: 3px;
+                                 color: {{ $isLight ? '#555' : '#cce0f0' }};">
+                        P R E C I O
+                    </span><br>
+                    <span style="font-size: 26px; font-weight: 900;
+                                 color: {{ $textCol }};">
+                        ${{ $item['extraido']['precio'] }} c/u
+                    </span>
+                    <span style="font-size: 11px; font-weight: bold;
+                                 color: {{ $isLight ? '#555' : '#cce0f0' }};">MX</span>
+                    <br>
+                    <img src="{{ $isLight ? $logo : $logo2 }}"
+                         style="width: 58px; margin-top: 100px;">
+                </td>
+            </tr>
+        </table>
+
+    </td>
+</tr>
+</table>
+
+@endforeach
 
 </body>
 </html>

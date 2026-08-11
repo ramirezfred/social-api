@@ -299,6 +299,11 @@ class CashCloseController extends Controller
             DB::table('quote_details')
                 ->where('supplier_id', $request->supplier_id)
                 ->where('pago_proveedor_estado', 'pendiente')
+                ->whereIn('quote_id', function($query) {
+                    $query->select('id')
+                        ->from('quotes')
+                        ->where('estado', 'finalizada');
+                })
                 ->update([
                     'pago_proveedor_estado' => 'pagado',
                     'cash_close_id' => $close->id

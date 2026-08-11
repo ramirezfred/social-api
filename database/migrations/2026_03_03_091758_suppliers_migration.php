@@ -23,6 +23,7 @@ class SuppliersMigration extends Migration
             $table->string('contacto')->nullable();
             $table->boolean('status')->default(true);
             $table->string('categoria')->nullable();
+            $table->string('tipo')->nullable();
             $table->boolean('eliminado')->default(false);
             $table->timestamps();
         });

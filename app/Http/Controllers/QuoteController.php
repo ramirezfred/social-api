@@ -911,6 +911,7 @@ class QuoteController extends Controller
 
                 if (!isset($reporte[$supplierId])) {
                     $reporte[$supplierId] = [
+                        'tipo' => $supplier->tipo,
                         'nombre' => $supplier->contacto,
                         'tienda' => $supplier->razon_social,
                         'total_compra' => 0,
@@ -934,6 +935,7 @@ class QuoteController extends Controller
             $totalEntregar = $item['total_compra'] - $descuentoComision;
 
             $fila = [
+                'tipo' => $item['tipo'],
                 'nombre' => $item['nombre'],
                 'tienda' => $item['tienda'],
                 'total_compra' => round($item['total_compra'], 2),
@@ -1024,6 +1026,7 @@ class QuoteController extends Controller
 
                 if (!isset($reporte[$key])) {
                     $reporte[$key] = [
+                        'tipo'         => $supplier->tipo,
                         'nombre'       => $supplier->contacto,
                         'tienda'       => $supplier->razon_social,
                         'folio'        => $folio,
@@ -1044,6 +1047,7 @@ class QuoteController extends Controller
             $totalEntregar = $item['total_compra'] - $descuentoComision;
 
             $fila = [
+                'tipo'               => $item['tipo'],
                 'nombre'             => $item['nombre'],
                 'tienda'             => $item['tienda'],
                 'folio'              => $item['folio'],
@@ -1119,6 +1123,7 @@ class QuoteController extends Controller
 
                 if (!isset($reporte[$supplierId])) {
                     $reporte[$supplierId] = [
+                        'tipo' => $supplier->tipo,
                         'nombre' => $supplier->contacto,
                         'tienda' => $supplier->razon_social,
                         'total_compra' => 0,
@@ -1138,6 +1143,7 @@ class QuoteController extends Controller
         foreach ($reporte as $item) {
 
             $fila = [
+                'tipo'               => $item['tipo'],
                 'nombre'             => $item['nombre'],
                 'tienda'             => $item['tienda'], 
                 'total_compra'       => round($item['total_compra'], 2),
@@ -1173,6 +1179,7 @@ class QuoteController extends Controller
         ], 200);
     }
 
+    //Reporte Financiero de Ingresos y Egresos
     public function reporteIngresosEgresos()
     {
 
@@ -1269,10 +1276,21 @@ class QuoteController extends Controller
         */
 
         $deudaProveedores = DB::table('quote_details')
+            ->join('suppliers', 'quote_details.supplier_id', '=', 'suppliers.id')
             ->join('quotes', 'quote_details.quote_id', '=', 'quotes.id')
-            ->where('quotes.estado', 'finalizada')
+            ->where('quotes.estado', 'finalizada') // Solo ingresos reales
             ->where('quote_details.pago_proveedor_estado', 'pendiente')
-            ->value(DB::raw('ROUND(SUM(quote_details.total) * 0.90, 2)'));
+            ->select(
+                'suppliers.id as supplier_id',
+                'suppliers.razon_social',
+                'suppliers.tipo',
+                DB::raw('ROUND(SUM(quote_details.total), 2) as total_vendido'),
+                DB::raw('ROUND(SUM(quote_details.total) * 0.90, 2) as total_deuda')
+            )
+            ->groupBy('suppliers.id', 'suppliers.razon_social', 'suppliers.tipo')
+            ->get();
+
+        $totalGeneralDeuda = round($deudaProveedores->sum('total_deuda'), 2);
 
         /*
         |--------------------------------------------------------------------------
@@ -1290,7 +1308,10 @@ class QuoteController extends Controller
         $totalIngresosB = round($totalGenerado - $totalGastos - $totalNominas, 2);
         
         // Total disponible en caja = Total generado - gastos + Deuda a proveedores
-        $totalCaja = round(($totalGenerado - $totalGastos) + $deudaProveedores, 2);
+        // $totalCaja = round(($totalGenerado - $totalGastos) + $totalGeneralDeuda, 2);
+        
+        // Total disponible en caja = Total generado - gastos - nomina
+        $totalCaja = round($totalGenerado - $totalGastos - $totalNominas, 2);
 
         $data = [
             'r' => '',
@@ -1303,7 +1324,7 @@ class QuoteController extends Controller
                 'total_generado' => $totalGenerado,
                 'total_ingresos_a' => $totalIngresosA,
                 'total_ingresos_b' => $totalIngresosB,
-                'total_deuda_proveedores' => $deudaProveedores,
+                'total_deuda_proveedores' => $totalGeneralDeuda,
                 'total_caja' => $totalCaja,
             ],
             'ventas_semanales' => [
@@ -1317,6 +1338,10 @@ class QuoteController extends Controller
             'nominas' => [
                 'reporte' => $nominas,
                 'totales_generales' => round($totalNominas, 2)
+            ],
+            'deuda_proveedores' => [
+                'reporte' => $deudaProveedores,
+                'totales_generales' => $totalGeneralDeuda
             ],
         ];
 
@@ -1346,7 +1371,7 @@ class QuoteController extends Controller
         //         'total_generado' => $totalGenerado,
         //         'total_ingresos_a' => $totalIngresosA,
         //         'total_ingresos_b' => $totalIngresosB,
-        //         'total_deuda_proveedores' => $deudaProveedores,
+        //         'total_deuda_proveedores' => $totalGeneralDeuda,
         //         'total_caja' => $totalCaja,
         //     ],
         //     'ventas_semanales' => [

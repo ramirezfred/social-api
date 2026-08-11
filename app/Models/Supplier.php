@@ -20,12 +20,15 @@ class Supplier extends Model
         'contacto',
         'status',
         'categoria',
+        'tipo', //Socio, Adicional, etc.
+        'envia_fotos',
         'eliminado',
     ];
 
     protected $casts = [
         'status' => 'boolean',
         'eliminado' => 'boolean',
+        'envia_fotos' => 'boolean',
         'user_id' => 'integer',
     ];
 
