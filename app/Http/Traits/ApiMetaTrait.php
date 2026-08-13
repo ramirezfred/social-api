@@ -110,7 +110,13 @@ trait ApiMetaTrait
 
                 for ($i=0; $i < count($meta_obj->data); $i++) { 
                     $imagen = static::_photos($meta_obj->data[$i]->id,$meta_obj->data[$i]->access_token);
-                    if ($imagen['status'] == 200) {
+
+                    if (
+                            $imagen['status'] == 200 && 
+                            isset($imagen['meta']) && 
+                            isset($imagen['meta']->data) && 
+                            !empty($imagen['meta']->data)
+                        ) {
                         $meta_obj->data[$i]->imagen_id = $imagen['meta']->data[0]->id;
                         // $meta_obj->data[$i]->imagen_url = 
                         //     "https://graph.facebook.com/v16.0/".$imagen['meta']->data[0]->id."/picture?type=thumbnail&access_token=".$meta_obj->data[$i]->access_token;
@@ -119,6 +125,13 @@ trait ApiMetaTrait
                     }else{
                         $meta_obj->data[$i]->imagen_id = null;
                         $meta_obj->data[$i]->imagen_url = null;
+
+                        // Opcional: Log para depuración
+                        \Log::warning('No se pudo obtener imagen para la página', [
+                            'page_id' => $meta_obj->data[$i]->id,
+                            'access_token' => $meta_obj->data[$i]->access_token,
+                            'imagen_response' => $imagen ?? 'sin respuesta'
+                        ]);
                     }
                 }
 
@@ -229,6 +242,8 @@ trait ApiMetaTrait
         } else {
 
             $meta_obj = json_decode($response);
+
+            \Log::error("[MetaAPITrait] _photos: " . $response);
           
             if (property_exists($meta_obj, 'data')) {
 

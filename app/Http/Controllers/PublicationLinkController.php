@@ -14,6 +14,12 @@ use Illuminate\Support\Str;
 
 class PublicationLinkController extends Controller
 {
+    public function __construct()
+    {
+        // PHP y Carbon crearán e interpretarán todas las fechas en UTC para este controlador
+        date_default_timezone_set('UTC');
+    }
+
     public function index(Request $request)
     {
         $query = PublicationLink::query();
@@ -199,14 +205,14 @@ class PublicationLinkController extends Controller
         if (!$link) {
             return response()->json([
                 'success' => false,
-                'message' => 'El enlace no existe.'
+                'message' => 'Enlace no encontrado.'
             ], 404);
         }
 
         if (!$link->status) {
             return response()->json([
                 'success' => false,
-                'message' => 'El enlace se encuentra deshabilitado.'
+                'message' => 'Tu enlace para publicaciones se encuentra deshabilitado.'
             ], 403);
         }
 
@@ -215,14 +221,14 @@ class PublicationLinkController extends Controller
         if ($link->starts_at && $now->lt($link->starts_at)) {
             return response()->json([
                 'success' => false,
-                'message' => 'El enlace todavía no está disponible.'
+                'message' => 'Tu enlace para publicaciones aún no está disponible.'
             ], 403);
         }
 
         if ($link->expires_at && $now->gt($link->expires_at)) {
             return response()->json([
                 'success' => false,
-                'message' => 'El enlace ha expirado.'
+                'message' => 'Tu enlace para publicaciones ha expirado.'
             ], 403);
         }
 
