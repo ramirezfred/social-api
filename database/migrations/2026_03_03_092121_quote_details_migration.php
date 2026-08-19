@@ -25,6 +25,7 @@ class QuoteDetailsMigration extends Migration
             $table->string('color')->nullable();
 
             $table->decimal('cantidad', 15, 4);
+            $table->decimal('cantidad_recolectada', 5, 4)->default(0);
             $table->decimal('precio_unitario', 15, 4);
             $table->decimal('porcentaje_desc', 5, 2)->default(0);
             $table->decimal('porcentaje_impuesto', 5, 2)->default(0); // IVA aplicado (0 o 16)

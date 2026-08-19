@@ -14,12 +14,14 @@ class QuoteDetail extends Model
     protected $fillable = [
         'quote_id', 
         'supplier_id', 
+        // 'publication_id',
 
         'modelo', 
         'talla',
         'color', 
 
         'cantidad', 
+        'cantidad_recolectada',
         'precio_unitario',
         'porcentaje_desc', 
         'porcentaje_impuesto', 
@@ -34,6 +36,7 @@ class QuoteDetail extends Model
 
     protected $casts = [
         'cantidad' => 'decimal:4',
+        'cantidad_recolectada' => 'decimal:4',
         'precio_unitario' => 'decimal:4',
         'porcentaje_desc' => 'decimal:2',
         'porcentaje_impuesto' => 'decimal:2',
@@ -51,8 +54,34 @@ class QuoteDetail extends Model
     //     return $this->belongsTo(ErpProduct::class, 'product_id');
     // }
 
+    public function quote()
+    {
+        return $this->belongsTo(Quote::class, 'quote_id');
+    }
+
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    public function publication()
+    {
+        return $this->belongsTo(Publication::class, 'publication_id');
+    }
+
+    /* =======================
+       Scopes
+    ======================= */
+
+    public function scopePendientesRecoleccion($query)
+    {
+        return $query
+            ->whereNotNull('supplier_id')
+            ->whereColumn('cantidad', '>', 'cantidad_recolectada')
+            ->whereHas('quote', function ($q) {
+                $q->noEliminados()
+                // ->where('estado', 'en curso');
+                ->where('id', '>=', 247); // Temporalmente, para pruebas
+            });
     }
 }

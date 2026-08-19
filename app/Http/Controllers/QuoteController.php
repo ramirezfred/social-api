@@ -263,6 +263,7 @@ class QuoteController extends Controller
             'notas' => 'sometimes|nullable|string',
 
             'detalles' => 'sometimes|array|min:1',
+            'detalles.*.id' => 'sometimes|nullable|integer|exists:quote_details,id',
             'detalles.*.supplier_id' => 'required_with:detalles|exists:suppliers,id',
             'detalles.*.modelo' => 'required_with:detalles|string|max:255',
             'detalles.*.talla' => 'required_with:detalles|string|max:255',
@@ -329,9 +330,10 @@ class QuoteController extends Controller
                 $quote->update(['pago_estado' => $this->calcularPagoEstado($quote)]);
             }
 
-            // Si vienen nuevos detalles, se reemplazan
+            // Sincronización inteligente de detalles
             if ($request->filled('detalles')) {
 
+                // Validar que existan los proveedores enviados
                 foreach ($request->detalles as $detalle) {
                     $proveedor = Supplier::noEliminados()
                         ->where('id', $detalle['supplier_id'])
@@ -346,12 +348,21 @@ class QuoteController extends Controller
                     }
                 }
 
-                $quote->detalles()->delete();
+                // 1. Obtener IDs de los detalles actualmente guardados en BD para esta Quote
+                $existingDetailIds = $quote->detalles()->pluck('id')->toArray();
 
+                // 2. Filtrar los IDs que vienen en la petición (los que se conservan o actualizan)
+                $incomingDetailIds = array_filter(array_column($request->detalles, 'id'));
+
+                // 3. Eliminar únicamente los detalles que NO vinieron en la petición
+                $idsToDelete = array_diff($existingDetailIds, $incomingDetailIds);
+                if (!empty($idsToDelete)) {
+                    QuoteDetail::whereIn('id', $idsToDelete)->delete();
+                }
+
+                // 4. Actualizar existentes o Crear nuevos
                 foreach ($request->detalles as $detalle) {
-
-                    // Guardar detalle de cotizacion
-                    $detalleCotizacion = QuoteDetail::create([
+                    $dataDetalle = [
                         'quote_id' => $quote->id,
                         'supplier_id' => $detalle['supplier_id'],
                         'modelo' => $detalle['modelo'],
@@ -365,7 +376,22 @@ class QuoteController extends Controller
                         'impuesto' => $detalle['impuesto'],
                         'descuento' => $detalle['descuento'],
                         'total' => $detalle['total'],
-                    ]);
+                    ];
+
+                    if (!empty($detalle['id']) && in_array($detalle['id'], $existingDetailIds)) {
+                        // Actualiza el detalle existente manteniendo su 'cantidad_recolectada'
+                        $existingDetail = QuoteDetail::find($detalle['id']);
+
+                        // Ajuste de seguridad: si reducen la cantidad total por debajo de lo ya recolectado
+                        if ($existingDetail->cantidad_recolectada > $detalle['cantidad']) {
+                            $dataDetalle['cantidad_recolectada'] = $detalle['cantidad'];
+                        }
+
+                        $existingDetail->update($dataDetalle);
+                    } else {
+                        // Crea un detalle nuevo (cantidad_recolectada iniciará en 0 por default en la BD)
+                        QuoteDetail::create($dataDetalle);
+                    }
                 }
 
             }

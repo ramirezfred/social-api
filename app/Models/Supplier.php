@@ -37,6 +37,11 @@ class Supplier extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    public function quoteDetails()
+    {
+        return $this->hasMany(QuoteDetail::class, 'supplier_id');
+    }
+
     // --- Scopes ---
     public function scopeActivos($query)
     {

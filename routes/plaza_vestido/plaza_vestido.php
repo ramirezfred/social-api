@@ -11,6 +11,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\CashCloseController;
 use App\Http\Controllers\PublicationLinkController;
+use App\Http\Controllers\PickupController;
 
 use App\Http\Controllers\PruebasController;
 
@@ -240,3 +241,17 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         '/publication-links/validate/{token}',
         [PublicationLinkController::class, 'validateToken']
     );
+
+    // ============================================
+    // RUTA DE RECOLECCIÓN
+    // ============================================
+    Route::prefix('pickup-routes')->group(function () {
+
+        // Lista de ruta de recolección
+        Route::get('/', [PickupController::class, 'getRutaRecoleccion']);
+
+        Route::get('/pdf', [PickupController::class, 'getRutaRecoleccionPdf']);
+
+        // Marcar un item como recolectado
+        Route::put('/marcar-recolectado/{detalleId}', [PickupController::class, 'marcarRecolectado']);
+    });
