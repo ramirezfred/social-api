@@ -14,7 +14,7 @@ class QuoteDetail extends Model
     protected $fillable = [
         'quote_id', 
         'supplier_id', 
-        // 'publication_id',
+        'publication_id',
 
         'modelo', 
         'talla',
@@ -80,8 +80,31 @@ class QuoteDetail extends Model
             ->whereColumn('cantidad', '>', 'cantidad_recolectada')
             ->whereHas('quote', function ($q) {
                 $q->noEliminados()
-                // ->where('estado', 'en curso');
-                ->where('id', '>=', 247); // Temporalmente, para pruebas
+                ->where('estado', 'en curso');
+                // ->where('id', '>=', 247); // Temporalmente, para pruebas
             });
     }
+
+    public function scopePedidosEnCursoSupplier($query, $supplierId, $userId)
+    {
+        return $query
+            ->where('supplier_id', $supplierId)
+            ->whereHas('quote', function ($q) use ($userId) {
+                $q->noEliminados()
+                ->where('estado', 'en curso')
+                ->where('user_id', $userId);
+            });
+    }
+
+    public function scopePedidosEnCurso($query, $userId)
+    {
+        return $query
+            ->whereNotNull('supplier_id')
+            ->whereHas('quote', function ($q) use ($userId) {
+                $q->noEliminados()
+                ->where('estado', 'en curso')
+                ->where('user_id', $userId);
+            });
+    }
+
 }

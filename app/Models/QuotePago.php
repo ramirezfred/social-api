@@ -17,13 +17,26 @@ class QuotePago extends Model
         'tipo', 
         'fecha',
         'referencia', 
-        'notas'
+        'notas',
+        'comprobante'
     ];
 
     protected $casts = [
         'monto' => 'decimal:2',
         'fecha' => 'date:Y-m-d'
     ];
+
+    protected $appends  = ['url'];  // agrega el atributo al JSON automáticamente
+
+    public function getUrlAttribute()    {
+        if($this->comprobante){
+            // return Storage::url($this->image_path);
+            return asset($this->comprobante);
+        }else{
+            return null;
+        }
+        
+    }
 
     /* =======================
        Relaciones

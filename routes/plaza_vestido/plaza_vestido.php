@@ -12,6 +12,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\CashCloseController;
 use App\Http\Controllers\PublicationLinkController;
 use App\Http\Controllers\PickupController;
+use App\Http\Controllers\PdfPlazaController;
 
 use App\Http\Controllers\PruebasController;
 
@@ -161,9 +162,12 @@ Route::group(['middleware' => ['jwt.verify']], function() {
         Route::get('/', [PublicationController::class, 'index']);
         Route::post('/', [PublicationController::class, 'store']);
         
+        Route::get('/index/stories', [PublicationController::class, 'indexStories']);
+        Route::get('/index/filter', [PublicationController::class, 'indexFilter']);
         Route::get('/crear/catalogo', [PublicationController::class, 'catalogo']);
         Route::get('/pruebas/catalogo', [PruebasController::class, 'catalogo']);
         Route::get('/borrar/publicaciones/pruebas', [PublicationController::class, 'destroyTestPublications']);
+        Route::put('/publish-stories', [PublicationController::class, 'publishStories']);
 
         // 2. RUTAS CON PARÁMETROS (MÁS ESPECÍFICAS PRIMERO)
         Route::get('/{id}/publicacion/normal', [PublicationController::class, 'showNormal']); // ← Más específica
@@ -254,4 +258,14 @@ Route::group(['middleware' => ['jwt.verify']], function() {
 
         // Marcar un item como recolectado
         Route::put('/marcar-recolectado/{detalleId}', [PickupController::class, 'marcarRecolectado']);
+    });
+
+    // ============================================
+    // PDFs PARA PROVEEDORES EN GENERAL
+    // ============================================
+    Route::prefix('pdf-report')->group(function () {
+
+        Route::get('/proveedores-pedidos-encurso/{userId}', [PdfPlazaController::class, 'getSuppliersConPedidosEnCurso']);
+        Route::get('/pdf-pedidos-encurso/{supplierId}/{userId}', [PdfPlazaController::class, 'pdfPedidosEnCursoSupplier']);
+
     });

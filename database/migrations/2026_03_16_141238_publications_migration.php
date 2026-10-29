@@ -18,8 +18,10 @@ class PublicationsMigration extends Migration
             $table->unsignedBigInteger('user_id')->nullable();
             $table->unsignedBigInteger('supplier_id'); // relación directa proveedor
             $table->text('texto');
+            $table->boolean('aprobada')->default(false);
             $table->string('estado')->default('borrador'); // borrador, publicada
             $table->timestamp('publication_date')->nullable();
+            $table->timestamp('history_date')->nullable();
             $table->timestamps();
         });
     }

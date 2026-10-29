@@ -15,12 +15,16 @@ class Publication extends Model
         'user_id',
         'supplier_id', 
         'texto',
+        'aprobada',
         'estado', // borrador, publicada
-        'publication_date'
+        'publication_date',
+        'history_date',
     ];
 
     protected $casts = [
         'user_id' => 'integer',
+        // 'history_date' => 'datetime',
+        'aprobada' => 'boolean',
     ];
 
     /* =======================

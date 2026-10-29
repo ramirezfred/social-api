@@ -98,6 +98,7 @@ class QuoteController extends Controller
             'notas' => 'nullable|string',
 
             'detalles' => 'required|array|min:1',
+            'detalles.*.publication_id' => 'nullable|integer',
             'detalles.*.supplier_id' => 'required|exists:suppliers,id',
             'detalles.*.modelo' => 'required|string|max:255',
             'detalles.*.talla' => 'required|string|max:255',
@@ -177,6 +178,7 @@ class QuoteController extends Controller
                 // Guardar detalle de cotizacion
                 $detalleCotizacion = QuoteDetail::create([
                     'quote_id' => $quote->id,
+                    'publication_id' => $detalle['publication_id'],
                     'supplier_id' => $detalle['supplier_id'],
                     'modelo' => $detalle['modelo'],
                     'talla' => $detalle['talla'],
@@ -264,6 +266,7 @@ class QuoteController extends Controller
 
             'detalles' => 'sometimes|array|min:1',
             'detalles.*.id' => 'sometimes|nullable|integer|exists:quote_details,id',
+            'detalles.*.publication_id' => 'sometimes|nullable|integer',
             'detalles.*.supplier_id' => 'required_with:detalles|exists:suppliers,id',
             'detalles.*.modelo' => 'required_with:detalles|string|max:255',
             'detalles.*.talla' => 'required_with:detalles|string|max:255',
@@ -364,6 +367,7 @@ class QuoteController extends Controller
                 foreach ($request->detalles as $detalle) {
                     $dataDetalle = [
                         'quote_id' => $quote->id,
+                        'publication_id' => $detalle['publication_id'],
                         'supplier_id' => $detalle['supplier_id'],
                         'modelo' => $detalle['modelo'],
                         'talla' => $detalle['talla'],
@@ -713,7 +717,11 @@ class QuoteController extends Controller
             'referencia'  => 'nullable|string|max:255',
             'fecha'       => 'nullable|date',
             'notas'      => 'nullable|string',
-        ]);
+            'comprobante' => 'required_if:tipo,transferencia|nullable|file|mimes:pdf,jpg,jpeg,png|max:5120', // Máx 5MB
+            ], [
+                'comprobante.required_if' => 'El comprobante (PDF o imagen) es obligatorio para pagos por transferencia.',
+                'comprobante.mimes'       => 'El comprobante debe ser un archivo PDF o una imagen (JPG, PNG).',
+            ]);
 
         if ($validator->fails()) {
             return response()->json([
@@ -729,22 +737,44 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        // Subida del archivo comprobante
+        $comprobantePath = null;
+        if ($request->hasFile('comprobante') && $request->file('comprobante')->isValid()) {
+            $comprobantePath = $request->file('comprobante')->store('uploads/comprobantes', 'public_root');
+        }
+
         $pago = $quote->pagos()->create([
             'monto'      => $request->monto,
             'tipo'       => $request->tipo,
             'fecha'      => $request->fecha ?? now(),
             'referencia' => $request->referencia,
             'notas'      => $request->notas,
+            'comprobante' => $comprobantePath,
         ]);
 
-        // Sincronizar pago_estado en la tabla quotes
-        $quote->update(['pago_estado' => $this->calcularPagoEstado($quote)]);
+        // Recargar la cotización para reflejar el nuevo cálculo del pago acumulado
+        $quote->refresh();
+        
+        $nuevoEstadoPago = $this->calcularPagoEstado($quote);
+        $quote->update(['pago_estado' => $nuevoEstadoPago]);
 
         $document = $this->comprobantePdf($quote->id);
         $quote->pdf = $document;
         $quote->update([
             'pdf' => $document,
         ]);
+
+        // Enviar correo si la cotización quedó en estado 'pagado'
+        if ($nuevoEstadoPago === 'pagado') {
+            try{
+
+                \Mail::to('tonii.jaam@gmail.com')->send(new \App\Mail\OrdenPagadaEmail($quote));
+            
+            }catch (\Exception $e) {
+                // Loguear el error es buena práctica para saber por qué falló
+                \Log::error("Error enviando email de pago de cotización: " . $e->getMessage());
+            }   
+        }
 
         return response()->json([
             'message'        => 'Pago registrado correctamente.',

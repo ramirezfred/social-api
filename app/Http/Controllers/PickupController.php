@@ -205,6 +205,13 @@ class PickupController extends Controller
         
         // Acceder a la data
         $ruta = $contenido['data']; // Aquí tienes los datos que necesitas
+
+        if (empty($ruta)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay prendas pendientes por recolectar en este momento.'
+            ], 404);
+        }
         
         // return $data;
 
@@ -212,7 +219,7 @@ class PickupController extends Controller
             'r' => '52',
             'g' => '152',
             'b' => '219',
-            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-REPORTE.jpeg'),
+            'header' => public_path('images/ordenPlazaVestido/BARRA-SUPERIOR-RECOLECCION.jpg'),
             'footer' => public_path('images/ordenPlazaVestido/BARRA-INFERIOR.jpeg'),
 
             'rutaRecoleccion' => $ruta

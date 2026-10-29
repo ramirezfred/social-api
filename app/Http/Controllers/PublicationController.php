@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Publication;
 use App\Models\PublicationImage;
 use App\Models\User;
+use App\Models\QuoteDetail;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +20,47 @@ use Carbon\Carbon;
 
 class PublicationController extends Controller
 {
+
+    public function indexFilter(Request $request)
+    {
+        // $query = Publication::select('id', 'texto')->where('id', '>=', 282);
+
+        $query = Publication::select('id', 'texto')
+            ->where(function ($q) {
+                $q->where('id', '>=', 282)
+                ->orWhere('id', 1); //Publicacion generica de Plaza del Vestido
+            });
+
+        // 1. Filtrar únicamente sobre la línea del código mediante REGEXP
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('texto', 'REGEXP', '(^|\r|\n)[^\r\n]*' . preg_quote($search, '/') . '[^\r\n]*(\r|\n|$)');
+        }
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        // 2. Traer resultados y transformar cada texto a la estructura deseada
+        $publications = $query->orderBy('id', 'desc')->get()->map(function ($pub) {
+            $texto = $pub->texto;
+
+            // Extraer Código (ej: *SN-260723-160654*)
+            preg_match('/\*(?:[A-Z0-9]+-[0-9]+-[0-9]+)\*/i', $texto, $matchCodigo);
+            $codigo = isset($matchCodigo[0]) ? trim($matchCodigo[0], '*') : null;
+
+            return [
+                'id' => $pub->id,
+                'codigo' => $codigo,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $publications,
+        ]);
+    }
+
     /**
      * GET /api/publications
      * Lista solo las publicaciones en estado borrador
@@ -26,6 +68,46 @@ class PublicationController extends Controller
     public function index(Request $request)
     {
         $query = Publication::where('estado', 'borrador');
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        $publications = $query->with([
+            'images', 
+            'supplier:id,razon_social,categoria'
+        ])
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+        return response()->json($publications);
+    }
+
+    /**
+     * GET /api/publications/index/stories
+     * Lista solo las publicaciones en estado borrador
+     */
+    public function indexStories(Request $request)
+    {
+        // Semana actual: viernes 00:00:00 → jueves 23:59:59
+        $inicioSemana = Carbon::now()->startOfWeek(Carbon::FRIDAY); // viernes de esta semana
+        $finSemana    = $inicioSemana->copy()->addDays(7)->subSecond(); // jueves 23:59:59
+
+        // Umbral de 24 horas: publicaciones con history_date <= este instante ya "expiraron"
+        $limite24h = Carbon::now()->subHours(24);
+
+        $query = Publication::
+            // Filtro de semana en curso sobre created_at
+            whereBetween('created_at', [$inicioSemana, $finSemana])
+            // Solo no publicadas, o publicadas hace más de 24h
+            ->where(function ($q) use ($limite24h) {
+                $q->whereNull('history_date')
+                ->orWhere('history_date', '<=', $limite24h);
+            });
+
+        if ($request->filled('user_id')) {
+            $query->where('user_id', $request->user_id);
+        }
 
         if ($request->filled('user_id')) {
             $query->where('user_id', $request->user_id);
@@ -233,6 +315,25 @@ class PublicationController extends Controller
         return response()->json($publication->load(['images', 'supplier']));
     }
 
+    public function publishStories(Request $request)
+    {
+        $ids = $request->input('array_ids', []);
+
+        if (empty($ids)) {
+            return response()->json(['message' => 'No hay publicaciones para marcar.'], 400);
+        }
+
+        Publication::whereIn('id', $ids)->update([
+            'history_date' => now(),   // si usas timestamp
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Publicaciones marcadas como publicadas.',
+            'ids' => $ids
+        ], 200);
+    }
+
     /**
      * DELETE /api/publications/{id}
      * Elimina la publicación y sus imágenes del storage
@@ -243,6 +344,14 @@ class PublicationController extends Controller
 
         if (!$publication) {
             return response()->json(['message' => 'Publicación no encontrada'], 404);
+        }
+
+        // Validar si la publicación está asociada a una cotización
+        if (QuoteDetail::where('publication_id', $id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No es posible eliminar esta publicación porque está asociada a una cotización.',
+            ], 409);
         }
 
         DB::beginTransaction();
@@ -556,9 +665,46 @@ class PublicationController extends Controller
             'supplier:id,razon_social,categoria'
         ]);
 
-        return response()->json([
-            'data' => $publication,
+        // Procesar el texto de la publicación individual
+        $texto = $publication->texto;
+
+        // Extraer Código
+        preg_match('/\*(?:[A-Z0-9]+-[0-9]+-[0-9]+)\*/i', $texto, $matchCodigo);
+        $codigo = isset($matchCodigo[0]) ? trim($matchCodigo[0], '*') : null;
+
+        // Si el ID es 1, omitimos el parseo y devolvemos arrays vacíos
+        if ((int)$id === 1) {
+            $tallas = [];
+            $colores = [];
+        } else {
+
+            // Extraer Tallas disponibles
+            preg_match('/🔖 \*Tallas disponibles\*\s*\r?\n([\s\S]*?)(?=\r?\n\r?\n🎨|\r?\n\r?\nPrecio|$)/i', $texto, $matchTallas);
+            $tallas = isset($matchTallas[1]) ? array_values(array_filter(explode("\n", str_replace("\r", "", trim($matchTallas[1]))))) : [];
+
+            // Extraer Colores disponibles
+            preg_match('/🎨 \*Colores disponibles\*\s*\r?\n([\s\S]*?)(?=\r?\n\r?\nPrecio|\r?\n\r?\n📦|$)/i', $texto, $matchColores);
+            $colores = isset($matchColores[1]) ? array_values(array_filter(explode("\n", str_replace("\r", "", trim($matchColores[1]))))) : [];
+
+        }
+
+        // Extraer Precio
+        preg_match('/Precio \*\$?([0-9]+(?:\.[0-9]+)?)/i', $texto, $matchPrecio);
+        $precio = isset($matchPrecio[1]) ? (float)$matchPrecio[1] : null;
+
+        // Asignar los campos transformados directamente o estructurar la respuesta
+        $formattedPublication = array_merge($publication->toArray(), [
+            'codigo' => $codigo,
+            'tallas' => $tallas,
+            'colores' => $colores,
+            'precio' => $precio,
         ]);
+
+        return response()->json([
+            'data' => $formattedPublication,
+        ]);
+
+        
     }
 
 

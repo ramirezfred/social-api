@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte Ruta de Recolección</title>
+    <title>Ruta de Recolección</title>
 
     <style>
       /* Configuración general para cada página */
@@ -35,31 +35,44 @@
       }
 
       p {
-          page-break-inside: avoid;
           margin: 3px 0;
       }
 
+      /* CAMBIO CLAVE: Se permite romper la tarjeta para que aproveche el espacio sobrante */
       .supplier-card {
           border: 1px solid #ccc;
           margin-bottom: 15px;
-          page-break-inside: avoid;
+          page-break-inside: auto; 
       }
 
+      /* Evita que el título del proveedor quede aislado al final de la página */
       .supplier-header {
           background-color: rgba({{ $r }}, {{ $g }}, {{ $b }}, 0.2);
           padding: 6px 10px;
           border-bottom: 1px solid #ccc;
+          page-break-after: avoid; 
       }
 
       .quote-section {
           padding: 6px 8px;
           border-bottom: 1px dashed #e0e0e0;
+          page-break-inside: auto;
       }
 
       .table-items {
           width: 100%;
           border-collapse: collapse;
           margin-top: 5px;
+      }
+
+      /* Mantiene la cabecera visible si la tabla se corta entre páginas */
+      .table-items thead {
+          display: table-header-group;
+      }
+
+      /* CAMBIO CLAVE: Evita que una fila (con su foto de 180px) se corte por la mitad */
+      .table-items tr {
+          page-break-inside: avoid;
       }
 
       .table-items th {
@@ -76,24 +89,15 @@
           vertical-align: middle;
       }
 
-      /* Contenedor de imágenes optimizado para vista móvil */
-      .row-images-container {
-          background-color: #f9f9f9;
-          padding: 12px 8px;
-          border-bottom: 1px solid #ddd;
-          text-align: center; /* Centra el bloque de imágenes */
-      }
-
-      /* Imágenes de gran tamaño para fácil lectura en celular */
-      .img-preview {
-          width: 200px;         /* Ancho amplio para vista móvil */
-          height: 230px;        /* Alto suficiente para ver textura/detalles */
+      /* Medidas originales restauradas */
+      .img-product {
+          width: 170px;
+          height: 180px;
           object-fit: cover;
-          border-radius: 6px;
-          border: 1px solid #bbb;
-          margin: 6px 4px;
-          display: inline-block;
-          vertical-align: middle;
+          border-radius: 4px;
+          border: 1px solid #ccc;
+          display: block;
+          margin: 0 auto;
       }
     </style>
 
@@ -127,15 +131,12 @@
                 <div class="supplier-header">
                   <table width="100%">
                     <tr>
-                      <td style="width: 50%; font-size: 11px;">
+                      <td style="font-size: 11px;">
                         <strong>Proveedor:</strong> {{ $supplier['razon_social'] }}
-                      </td>
-                      <td style="width: 50%; text-align: right; font-size: 10px;">
-                        <strong>Contacto:</strong> {{ $supplier['contacto'] ?? 'N/A' }} ({{ $supplier['telefono'] ?? 'S/D' }})
                       </td>
                     </tr>
                     <tr>
-                      <td colspan="2" style="font-size: 9px; color: #444; padding-top: 2px;">
+                      <td style="font-size: 9px; color: #444; padding-top: 2px;">
                         <strong>Dirección:</strong> {{ $supplier['direccion'] }}
                       </td>
                     </tr>
@@ -149,14 +150,7 @@
                       <table width="100%" style="margin-bottom: 4px;">
                         <tr>
                           <td>
-                            <strong>Folio:</strong> {{ $quote['folio'] }} | 
-                            <strong>Cliente:</strong> {{ $quote['cliente'] }} | 
-                            <strong>Teléfono:</strong> {{ $quote['telefono'] ?? 'N/A' }}
-                          </td>
-                          <td style="text-align: right;">
-                            <span style="background-color: #eee; padding: 2px 4px; border-radius: 3px; font-size: 8px;">
-                              Estado: {{ ucfirst($quote['estado']) }}
-                            </span>
+                            <strong>{{ $quote['folio'] }} </strong> 
                           </td>
                         </tr>
                       </table>
@@ -165,46 +159,43 @@
                       <table class="table-items">
                         <thead>
                           <tr>
+                            <th style="width: 190px;">Foto</th>
                             <th>Modelo</th>
                             <th>Talla</th>
                             <th>Color</th>
                             <th>Cant. Total</th>
                             <th>Recolectado</th>
                             <th>Pendiente</th>
-                            <th>Precio U.</th>
                           </tr>
                         </thead>
                         <tbody>
                           @foreach ($quote['detalles'] as $detalle)
-                            <!-- Fila 1: Datos del Producto -->
                             <tr>
+                              <!-- Columna de Imagen -->
+                              <td style="text-align: center; width: 180px;">
+                                @if(!empty($detalle['imagenes']) && count($detalle['imagenes']) > 0)
+                                  <img src="{{ $detalle['imagenes'][0] }}" class="img-product" alt="Producto">
+                                @elseif(!empty($detalle['imagen']))
+                                  <img src="{{ $detalle['imagen'] }}" class="img-product" alt="Producto">
+                                @else
+                                  <span style="color: #777; font-size: 10px;">Sin Foto</span>
+                                @endif
+                              </td>
+
+                              <!-- Datos del Producto -->
                               <td><strong>{{ $detalle['modelo'] }}</strong></td>
                               <td style="text-align: center;">{{ $detalle['talla'] }}</td>
                               <td style="text-align: center;">{{ $detalle['color'] }}</td>
-                              <td style="text-align: center;">{{ $detalle['cantidad_total'] }}</td>
-                              <td style="text-align: center;">{{ $detalle['cantidad_recolectada'] }}</td>
-                              <td style="text-align: center; font-weight: bold; color: #d9534f;">
-                                {{ $detalle['cantidad_pendiente'] }}
+                              <td style="text-align: center;">
+                                <strong>{{ $detalle['cantidad_total'] }}</strong>
                               </td>
-                              <td style="text-align: right;">
-                                ${{ number_format($detalle['precio_unitario'], 2, '.', ',') }}
+                              <td style="text-align: center;">
+                                <strong>{{ $detalle['cantidad_recolectada'] }}</strong>
+                              </td>
+                              <td style="text-align: center; font-weight: bold; color: #d9534f;">
+                                <strong>{{ $detalle['cantidad_pendiente'] }}</strong>
                               </td>
                             </tr>
-
-                            <!-- Fila 2: Imágenes en formato grande para celular -->
-                            @if(!empty($detalle['imagenes']) && count($detalle['imagenes']) > 0)
-                              <tr>
-                                <td colspan="7" class="row-images-container">
-                                  <div style="font-size: 10px; color: #444; margin-bottom: 6px; text-align: center;">
-                                    <strong>Imágenes del producto (Máx. 5):</strong>
-                                  </div>
-                                  {{-- Muestra hasta 5 imágenes con tamaño grande --}}
-                                  @foreach(array_slice($detalle['imagenes'], 0, 5) as $imgUrl)
-                                    <img src="{{ $imgUrl }}" class="img-preview" alt="Imagen del producto">
-                                  @endforeach
-                                </td>
-                              </tr>
-                            @endif
                           @endforeach
                         </tbody>
                       </table>
